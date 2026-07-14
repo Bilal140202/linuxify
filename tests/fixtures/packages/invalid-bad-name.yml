@@ -1,0 +1,26 @@
+# packages/invalid-bad-name.yml — name has an uppercase letter.
+# The schema requires ^[a-z][a-z0-9-]{1,62}$; "Cline" fails.
+name: Cline
+version: 1.2.0
+description: "Bad name (uppercase)"
+homepage: https://github.com/cline/cline
+license: MIT
+runtime: node
+runtime_min_version: "20"
+package: cline
+launcher: cline
+install:
+  - npm install -g cline
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu]
+  tested_runtimes: [node]
+  known_issues: []
+  not_supported: []
+permissions:
+  network: true
+  filesystem:
+    binds: []
+  services:
+    start: []
+  setuid: false

@@ -1,0 +1,36 @@
+# packages/cline.yml — a valid, simple package definition.
+# Exercises the simple (array) install form, no patches, minimal env.
+name: cline
+version: 1.2.0
+description: "AI coding agent that runs in your terminal"
+homepage: https://github.com/cline/cline
+license: MIT
+maintainer: ravi@linuxify.dev
+tags: [ai-coding, terminal]
+category: ai
+runtime: node
+runtime_min_version: "20"
+package: cline
+launcher: cline
+package_manager: npm
+install:
+  - npm install -g cline@1.2.0
+uninstall:
+  - npm uninstall -g cline
+env:
+  CLINE_PLATFORM: linux
+  FORCE_COLOR: "1"
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node]
+  known_issues: []
+  not_supported: []
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard:/workspace]
+  services:
+    start: []
+  setuid: false
+notes: "If cline crashes on startup, try linuxify patch cline."

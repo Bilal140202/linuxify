@@ -1,0 +1,80 @@
+# packages/codex.yml — a valid package with patches, structured install, env, doctor.
+# Exercises the structured (object) install form, patches block, structured env,
+# and doctor checks.
+name: codex
+version: 0.20.1
+description: "OpenAI Codex CLI"
+homepage: https://github.com/openai/codex
+license: Apache-2.0
+maintainer: mira@linuxify.dev
+tags: [ai-coding, terminal]
+category: ai
+runtime: node
+runtime_min_version: "22"
+package: "@openai/codex"
+launcher: codex
+package_manager: npm
+install:
+  steps:
+    - name: install
+      command: npm install -g @openai/codex@0.20.1
+      expect: 0
+      retry: 2
+      on_fail: abort
+  env:
+    npm_config_target_platform: linux
+  cwd: /tmp
+uninstall:
+  - npm uninstall -g @openai/codex
+patches:
+  - id: codex-001
+    patch_id: codex-001
+    description: "Treat android as linux for platform check"
+    file: "node_modules/@openai/codex/dist/platform.js"
+    type: regex
+    find: "process\\.platform === 'linux'"
+    replace: "['linux','android'].includes(process.platform)"
+    verify: "grep -q android node_modules/@openai/codex/dist/platform.js"
+    rollback: true
+  - id: codex-002
+    patch_id: codex-002
+    description: "Support arm64 architecture"
+    file: "node_modules/@openai/codex/dist/arch.js"
+    type: regex
+    find: "process\\.arch === 'x64'"
+    replace: "['x64','arm64'].includes(process.arch)"
+    verify: "grep -q arm64 node_modules/@openai/codex/dist/arch.js"
+    rollback: true
+env:
+  CODEX_PLATFORM: linux
+  NODE_OPTIONS:
+    value: "--max-old-space-size=2048"
+    scope: run
+    override: merge
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node]
+  known_issues: []
+  not_supported: []
+doctor:
+  - id: codex-node-version
+    name: "Node version"
+    command: "node --version"
+    expect: 0
+    fix_command: "linuxify runtimes install node 22 --default"
+    severity: ok
+  - id: codex-binary-present
+    name: "codex binary"
+    command: "which codex"
+    expect: 0
+    fix_command: "linuxify add codex --force"
+    severity: fail
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard:/workspace]
+  services:
+    start: []
+  setuid: false
+notes: "If codex crashes on startup, try linuxify patch codex."

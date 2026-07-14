@@ -1,0 +1,61 @@
+name: codex
+version: 0.20.1
+description: "OpenAI's terminal coding agent — Codex can read/write files, run commands, and ship PRs from your terminal."
+homepage: https://github.com/openai/codex
+license: Apache-2.0
+maintainer: "Linuxify Contributors"
+tags: [ai, coding-agent, terminal, openai]
+category: ai
+runtime: node
+runtime_min_version: "20"
+package: "@openai/codex"
+launcher: codex
+package_manager: npm
+
+install:
+  - npm install -g @openai/codex
+
+patches:
+  - id: fix-platform-detection
+    description: "Treat Android proot as Linux for platform checks"
+    file: "node_modules/@openai/codex/dist/index.js"
+    type: regex
+    find: "process\\.platform === ['\"]linux['\"]"
+    replace: "['linux','android'].includes(process.platform)"
+    verify: "codex --version"
+    rollback: true
+    patch_id: codex-001
+
+env:
+  OPENAI_PLATFORM: linux
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu]
+  tested_runtimes: [node-22, node-24]
+  known_issues:
+    - id: codex-001
+      severity: low
+      description: "First prompt can be slow due to model warmup"
+      workaround: "Pre-warm with `codex --version` before interactive use"
+  not_supported: [alpine]
+
+doctor:
+  - id: codex.binary
+    name: "Codex binary executes"
+    command: "codex --version"
+    expect: 0
+    fix_command: "linuxify patch codex"
+    severity: fail
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Codex requires an OpenAI API key set as OPENAI_API_KEY env var.
+  First run may be slow due to model initialization.

@@ -1,0 +1,56 @@
+// tests/integration/bootstrap.integration.test.ts.skip
+//
+// Integration tests for the Linuxify bootstrap pipeline.
+//
+// This file is intentionally named `*.test.ts.skip` (not `*.test.ts`) so
+// that vitest's integration runner (see vitest.integration.config.ts, which
+// includes only `tests/integration/**/*.test.ts`) does NOT pick it up.
+// Bootstrap integration tests require a real Termux + proot-distro +
+// Android environment (or a heavyweight containerised equivalent) and
+// cannot run on a developer laptop or in CI without specialised fixtures.
+//
+// To enable these tests, rename the file to
+// `bootstrap.integration.test.ts` and ensure the following prerequisites
+// are met:
+//
+//   1. Termux (F-Droid build, >= 0.118) is installed and on PATH.
+//   2. `pkg install proot proot-distro` has been run.
+//   3. `termux-setup-storage` has been run (so `~/.test` write succeeds).
+//   4. Network access to cdimage.ubuntu.com is allowed (or set
+//      LINUXIFY_BOOTSTRAP_OFFLINE=1 and supply a bundle).
+//   5. At least 2 GiB free on the home filesystem.
+//   6. The `LINUXIFY_HOME` env var points at a scratch directory that can
+//      be wiped between tests (e.g. `/tmp/linuxify-integration-home`).
+//
+// TODO(author): implement the following test cases once the prerequisites
+// are wired into CI (tracked in
+// https://github.com/Bilal140202/linuxify/issues/<bootstrap-integration>):
+//
+//   - `bootstrap()` end-to-end on a fresh Termux install produces a
+//     `BootstrapResult` with `failedStage: null` and all nine stages in
+//     `completedStages`.
+//   - `linuxify doctor` (minimal profile) is green after a successful
+//     bootstrap.
+//   - `bootstrap({ force: true })` clears markers and re-runs every stage
+//     without leaving the system in a broken state.
+//   - `bootstrap({ fromStage: 4 })` skips Stages 0-3 and resumes from
+//     Stage 4; the final state matches a fresh bootstrap.
+//   - Interrupting Stage 3 (SIGINT mid-apt-install) and re-running
+//     `bootstrap()` resumes cleanly via `dpkg --configure -a`.
+//   - Stage 2 mirror fallback: blocking the primary cdimage.ubuntu.com
+//     mirror causes Stage 2 to fall through to the Tsinghua mirror.
+//   - `bootstrap({ offline: true, bundlePath: './bundle.tar.gz' })`
+//     completes without any network access.
+//   - Marker file contents survive a `linuxify init` re-run (Stage N's
+//     `.done` marker records the original `completedAt` timestamp, not
+//     the re-run's).
+//
+// The unit tests in tests/unit/bootstrap/ cover the orchestrator's
+// sequencing logic and the marker file semantics with mocked stages; the
+// integration tests here are responsible only for the real-system contract
+// (proot-distro actually logs in, apt actually installs packages, etc.).
+//
+// See docs/05-bootstrap/bootstrap-design.md §4 (failure modes & recovery)
+// for the recovery scenarios the integration suite must exercise.
+
+export {};

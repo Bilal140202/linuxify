@@ -1,0 +1,24 @@
+{
+  "name": "valid-plugin",
+  "version": "1.0.0",
+  "linuxify": ">=0.0.1",
+  "description": "A complete test fixture plugin with all hooks implemented.",
+  "provides": {
+    "runtimes": ["custom-runtime"],
+    "distros": [],
+    "commands": ["valid-cmd"],
+    "doctorChecks": ["valid.check"],
+    "patchTypes": ["custom-type"]
+  },
+  "hooks": {
+    "preInstall": "./hooks/pre-install.js",
+    "postInstall": "./hooks/post-install.js",
+    "prePatch": "./hooks/pre-patch.js",
+    "postPatch": "./hooks/post-patch.js",
+    "preRun": "./hooks/pre-run.js",
+    "postRun": "./hooks/post-run.js",
+    "doctor": "./hooks/doctor.js",
+    "bootstrap": "./hooks/bootstrap.js",
+    "command": "./hooks/command.js"
+  }
+}

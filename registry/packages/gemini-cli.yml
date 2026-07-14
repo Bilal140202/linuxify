@@ -1,0 +1,61 @@
+name: gemini-cli
+version: 0.1.0
+description: "Google's terminal agent for Gemini models — chat with Gemini, run shell commands, edit files."
+homepage: https://github.com/google-gemini/gemini-cli
+license: Apache-2.0
+maintainer: "Linuxify Contributors"
+tags: [ai, coding-agent, terminal, gemini, google]
+category: ai
+runtime: node
+runtime_min_version: "20"
+package: "@google/gemini-cli"
+launcher: gemini
+package_manager: npm
+
+install:
+  - npm install -g @google/gemini-cli
+
+patches:
+  - id: fix-platform-check
+    description: "Treat Android proot as Linux"
+    file: "node_modules/@google/gemini-cli/dist/index.js"
+    type: regex
+    find: "process\\.platform === ['\"]linux['\"]"
+    replace: "['linux','android'].includes(process.platform)"
+    verify: "gemini --version"
+    rollback: true
+    patch_id: gemini-cli-001
+
+env:
+  GEMINI_PLATFORM: linux
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu]
+  tested_runtimes: [node-22, node-24]
+  known_issues:
+    - id: gemini-cli-001
+      severity: low
+      description: "First invocation downloads model config; may take 30s"
+      workaround: "Pre-warm with `gemini --version`"
+  not_supported: [alpine]
+
+doctor:
+  - id: gemini-cli.binary
+    name: "Gemini CLI binary executes"
+    command: "gemini --version"
+    expect: 0
+    fix_command: "linuxify patch gemini-cli"
+    severity: fail
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Requires a Google API key set as GOOGLE_API_KEY env var.
+  Free tier available with generous limits.

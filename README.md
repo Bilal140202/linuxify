@@ -16,7 +16,7 @@
 
 ---
 
-> ⚠️ **Status: Alpha / Pre-release.** Linuxify is under active development. APIs, package definitions, and CLI flags may change before v1.0. Star the repo to follow along, and read the [executive summary](docs/00-executive/executive-summary.md) for current status.
+> ⚠️ **Status: Alpha / Pre-release.** Linuxify is under active development. The CLI scaffold, all 14 core subsystems, and 5 seed packages are implemented (v0.1.0-alpha.1). APIs, package definitions, and CLI flags may change before v1.0. Star the repo to follow along, and read the [executive summary](docs/00-executive/executive-summary.md) for current status.
 
 ## Why Linuxify?
 
@@ -125,13 +125,38 @@ linuxify/
 ├── LICENSE                    # MIT
 ├── CHANGELOG.md
 ├── SECURITY.md
-├── .agent-context.md          # shared context for documentation agents
+├── package.json               # Node.js CLI package
+├── tsconfig.json              # TypeScript strict config
+├── tsup.config.ts             # Build config (ESM bundle)
+├── vitest.config.ts           # Test config
+├── .agent-context.md          # shared context for AI documentation agents
 ├── .github/                   # issue templates, PR template, CI workflows
-├── docs/                      # full documentation set (see docs/INDEX.md)
-└── (source code lands in a later milestone)
+├── src/                       # TypeScript source (14 subsystems)
+│   ├── cli/                   # CLI entry point + 25 subcommands
+│   ├── bootstrap/             # 8-stage idempotent environment bring-up
+│   ├── distros/               # Pluggable distro backends (Ubuntu, Debian, Arch, Alpine)
+│   ├── runtimes/              # Pluggable runtime managers (Node, Python, Rust, Go)
+│   ├── packages/              # Package YAML parsing + installation
+│   ├── launcher/              # Shell-script shim generation
+│   ├── doctor/                # 18 health checks + parallel engine
+│   ├── patcher/               # Regex/sed/shell patch engine + AST stubs
+│   ├── plugins/               # Plugin SDK + hook dispatcher
+│   ├── registry/              # v1 git-based registry client
+│   ├── telemetry/             # Opt-in privacy-preserving telemetry
+│   ├── repair/                # Auto-repair engine
+│   ├── snapshot/              # Snapshot/restore
+│   ├── migrations/            # Self-update migrations
+│   ├── config/                # TOML config + override layers
+│   ├── state/                 # Atomic state.json management
+│   └── utils/                 # log, fs, net, crypto, process, errors, constants
+├── tests/                     # 1400+ Vitest unit tests
+├── registry/                  # v1 git-based package registry
+│   ├── registry.toml
+│   └── packages/              # cline.yml, codex.yml, aider.yml, goose.yml, gemini-cli.yml
+└── docs/                      # 75 markdown docs + 15 ADRs (~300k words)
 ```
 
-The full documentation tree — 25 numbered sections ranging from executive briefings to ADRs — is mapped in [`docs/INDEX.md`](docs/INDEX.md).
+The full documentation tree — 25 numbered sections ranging from executive briefings to ADRs — is mapped in [`docs/INDEX.md`](docs/INDEX.md). For the recommended build order, read the [AI Build Guide](docs/00-executive/ai-build-guide.md).
 
 ## Documentation
 

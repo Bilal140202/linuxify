@@ -1,0 +1,29 @@
+# Linuxify Registry Metadata
+# This file describes the v1 git-based registry itself.
+# See docs/09-registry/registry-format.md for the full spec.
+
+schema_version = 1
+registry_name = "linuxify"
+description = "Official Linuxify package registry — package definitions for Linux developer CLIs."
+maintainers = [
+  "Bilal140202",
+]
+homepage = "https://github.com/Bilal140202/linuxify"
+license = "MIT"
+
+[signing]
+# v1: registry commits signed by maintainer GPG keys (web of trust).
+# v2: per-package Ed25519 signatures (planned, see ADR-013).
+signing_policy = "gpg-signed-commits"
+keys_file = "KEYS"
+
+[update]
+# How often clients should refresh their local clone.
+recommended_refresh_interval_hours = 24
+force_refresh_after_hours = 168
+
+[mirrors]
+# Official mirror list. Clients fall back through these in order.
+# Self-hosted registries can override via config.registry.url.
+primary = "https://github.com/Bilal140202/linuxify"
+mirrors = []

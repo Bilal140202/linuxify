@@ -1,0 +1,92 @@
+{
+  "name": "linuxify",
+  "version": "0.1.0-alpha.1",
+  "description": "Run Linux developer tools on Android. A compatibility layer, package manager, and diagnostic engine for Linux-oriented developer CLIs running on Android via Termux + proot.",
+  "keywords": [
+    "android",
+    "termux",
+    "proot",
+    "linux",
+    "cli",
+    "package-manager",
+    "cline",
+    "codex",
+    "aider",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/Bilal140202/linuxify",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bilal140202/linuxify.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Bilal140202/linuxify/issues"
+  },
+  "license": "MIT",
+  "author": "Linuxify Contributors",
+  "type": "module",
+  "bin": {
+    "linuxify": "./dist/cli/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
+    "lint:fix": "eslint 'src/**/*.ts' 'tests/**/*.ts' --fix",
+    "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts' 'docs/**/*.md'",
+    "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts'",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:perf": "vitest run --config vitest.perf.config.ts",
+    "test:compat": "vitest run --config vitest.compat.config.ts",
+    "prepublishOnly": "npm run build && npm run test",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "execa": "^9.5.1",
+    "glob": "^11.0.0",
+    "js-yaml": "^4.1.0",
+    "p-limit": "^6.1.0",
+    "p-retry": "^6.2.0",
+    "pino": "^9.5.0",
+    "semver": "^7.6.3",
+    "simple-git": "^3.27.0",
+    "tar": "^7.4.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/iarna__toml": "^2.0.5",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "@types/semver": "^7.5.6",
+    "@types/tar": "^6.1.13",
+    "@typescript-eslint/eslint-plugin": "^8.16.0",
+    "@typescript-eslint/parser": "^8.16.0",
+    "@vitest/coverage-v8": "^2.1.5",
+    "eslint": "^9.15.0",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.4.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.64.0",
+    "vitest": "^2.1.5"
+  }
+}

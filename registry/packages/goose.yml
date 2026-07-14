@@ -1,0 +1,61 @@
+name: goose
+version: 0.10.0
+description: "An open-source AI agent from Block that can execute tasks, write code, and run shell commands."
+homepage: https://github.com/block/goose
+license: Apache-2.0
+maintainer: "Linuxify Contributors"
+tags: [ai, coding-agent, terminal, block]
+category: ai
+runtime: node
+runtime_min_version: "20"
+package: "@block/goose"
+launcher: goose
+package_manager: npm
+
+install:
+  - npm install -g @block/goose
+
+patches:
+  - id: fix-platform-check
+    description: "Treat Android proot as Linux"
+    file: "node_modules/@block/goose/dist/platform.js"
+    type: regex
+    find: "process\\.platform === ['\"]linux['\"]"
+    replace: "['linux','android'].includes(process.platform)"
+    verify: "goose --version"
+    rollback: true
+    patch_id: goose-001
+
+env:
+  GOOSE_PLATFORM: linux
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu]
+  tested_runtimes: [node-22, node-24]
+  known_issues:
+    - id: goose-001
+      severity: med
+      description: "Reports wrong architecture on aarch64 phones"
+      workaround: "Patched by goose-002"
+  not_supported: [alpine]
+
+doctor:
+  - id: goose.binary
+    name: "Goose binary executes"
+    command: "goose --version"
+    expect: 0
+    fix_command: "linuxify patch goose"
+    severity: fail
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Goose supports multiple LLM providers (Anthropic, OpenAI, local Ollama).
+  Configure your preferred provider via `goose configure`.

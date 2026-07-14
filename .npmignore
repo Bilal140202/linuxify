@@ -1,0 +1,30 @@
+# Files excluded from npm package — keep the published tarball small.
+# Only `dist/`, README, LICENSE, CHANGELOG are shipped (per package.json `files`).
+
+docs/
+tests/
+scripts/
+registry/
+packages/
+.github/
+.vscode/
+.agent-context.md
+worklog.md
+
+# Configs not needed at runtime
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+vitest.integration.config.ts
+vitest.e2e.config.ts
+vitest.compat.config.ts
+vitest.perf.config.ts
+.eslintrc.cjs
+eslint.config.js
+.prettierrc
+.prettierignore
+.gitignore
+
+# Source maps are large; ship them but exclude dev-only files
+*.ts
+!dist/**/*.ts

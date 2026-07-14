@@ -1,0 +1,16 @@
+{
+  "name": "missing-hooks-plugin",
+  "version": "1.0.0",
+  "linuxify": ">=0.0.1",
+  "provides": {
+    "runtimes": [],
+    "distros": [],
+    "commands": [],
+    "doctorChecks": [],
+    "patchTypes": []
+  },
+  "hooks": {
+    "preInstall": "./hooks/non-existent.js",
+    "postInstall": "./hooks/also-missing.js"
+  }
+}

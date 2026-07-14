@@ -54,6 +54,25 @@ doctor:
     fix_command: "linuxify patch cline"
     severity: fail
 
+repair:
+  - when: cline.binary
+    strategy: reinstall
+    description: "Cline binary is broken or missing platform patches — reinstall and re-apply patches"
+    risk: moderate
+    steps:
+      - linuxify remove cline
+      - linuxify add cline
+    fixes: "Reinstalls Cline with fresh patches applied"
+    requires_network: true
+  - when: compat.platform
+    strategy: patch-platform
+    description: "Re-apply the platform-detection patch (Cline thinks it's on Android, not Linux)"
+    risk: safe
+    steps:
+      - linuxify patch cline
+    fixes: "Cline will treat Android-proot as Linux"
+    requires_network: false
+
 permissions:
   network: true
   filesystem:

@@ -29,6 +29,7 @@ import { registerConfigCommand } from './config.js';
 import { registerDistrosCommand } from './distros.js';
 import { registerDoctorCommand } from './doctor.js';
 import { registerEnvCommand } from './env.js';
+import { registerFixCommand } from './fix.js';
 import { registerGcCommand } from './gc.js';
 import { registerInfoCommand } from './info.js';
 import { registerInitCommand } from './init.js';
@@ -38,6 +39,7 @@ import { registerPatchCommand } from './patch.js';
 import { registerPluginsCommand } from './plugins.js';
 import { registerRemoveCommand } from './remove.js';
 import { registerRepairCommand } from './repair.js';
+import { registerReportCommand } from './report.js';
 import { registerRunCommand } from './run.js';
 import { registerRuntimesCommand } from './runtimes.js';
 import { registerSearchCommand } from './search.js';
@@ -111,6 +113,8 @@ export function registerAllCommands(
   // Diagnostics & repair.
   registerDoctorCommand(program, getCtx, setExit);
   registerRepairCommand(program, getCtx, setExit);
+  registerFixCommand(program, getCtx, setExit);
+  registerReportCommand(program, getCtx, setExit);
   registerPatchCommand(program, getCtx, setExit);
 
   // Discovery.

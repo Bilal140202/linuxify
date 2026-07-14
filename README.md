@@ -177,6 +177,7 @@ AI coding agent implementing Linuxify, start with the
 | If you want to… | Read |
 | --- | --- |
 | Get the 5-minute briefing | [Executive summary](docs/00-executive/executive-summary.md) |
+| Understand the product strategy | [Strategy doc](docs/strategy.md) |
 | **Build Linuxify (AI agents start here)** | [AI Build Guide](docs/00-executive/ai-build-guide.md) |
 | Understand the product | [Product requirements doc](docs/01-product/prd.md) |
 | Read the system design | [System architecture](docs/02-architecture/system-architecture.md) |
@@ -187,6 +188,18 @@ AI coding agent implementing Linuxify, start with the
 | Contribute | [Contribution guidelines](docs/16-community/contribution-guidelines.md) |
 | Troubleshoot | [Troubleshooting](docs/22-operations/troubleshooting.md) |
 | See all architecture decisions | [ADRs](docs/20-adrs/README.md) |
+
+### Key commands
+
+```bash
+linuxify init                  # Bootstrap Ubuntu + runtimes + PATH (idempotent)
+linuxify add cline             # Install + patch + launcher
+linuxify run cline             # Run a CLI inside proot
+linuxify doctor                # Health-check the environment
+linuxify fix                   # Diagnose + propose/appl repairs (AI mechanic)
+linuxify report --markdown     # Generate a bug-report-ready fingerprint
+linuxify repair                # Auto-repair detected issues
+```
 
 ## Contributing
 

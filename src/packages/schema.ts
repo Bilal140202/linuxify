@@ -297,6 +297,57 @@ export const PermissionsSchema = z
 export type Permissions = z.infer<typeof PermissionsSchema>;
 
 // ============================================================================
+// Repair recipes
+// ============================================================================
+
+/**
+ * Schema for a single declarative repair recipe.
+ *
+ * A repair recipe tells `linuxify fix` what to do when a specific doctor
+ * check fails for this package. Recipes are declarative — they describe
+ * the *what* (steps to run) and the *when* (which failing check triggers
+ * this recipe), not the *how* (the diagnosis engine handles presentation,
+ * safety filtering, and user confirmation).
+ *
+ * Recipes are checked BEFORE the built-in generic diagnosis rules, so a
+ * package author can override the default behavior for package-specific
+ * checks (e.g., `cline.binary`).
+ *
+ * Example:
+ * ```yaml
+ * repair:
+ *   - when: cline.binary
+ *     strategy: reinstall
+ *     description: "Cline binary is broken — reinstall and re-patch"
+ *     risk: moderate
+ *     steps:
+ *       - linuxify remove cline
+ *       - linuxify add cline
+ * ```
+ */
+export const RepairRecipeSchema = z
+  .object({
+    /** Doctor check ID that triggers this recipe (e.g., `cline.binary`). */
+    when: z.string().min(1),
+    /** Named strategy for display + deduplication (`reinstall`, `patch-platform`, `clear-cache`). */
+    strategy: z.string().min(1),
+    /** Human-readable description shown in `linuxify fix` output. */
+    description: z.string().min(1),
+    /** Risk level: `safe` (default), `moderate`, `risky`, `destructive`. */
+    risk: z.enum(['safe', 'moderate', 'risky', 'destructive']).default('safe'),
+    /** Ordered shell commands to execute. Empty for manual-only recipes. */
+    steps: z.array(z.string()).default([]),
+    /** What this recipe fixes (one-line summary, shown to user). */
+    fixes: z.string().optional(),
+    /** Whether this recipe requires network access (default: true). */
+    requires_network: z.boolean().default(true),
+  })
+  .strict();
+
+/** Inferred type for a repair recipe. */
+export type RepairRecipe = z.infer<typeof RepairRecipeSchema>;
+
+// ============================================================================
 // Compat
 // ============================================================================
 
@@ -391,6 +442,29 @@ export const PackageSchema = z
     compat: CompatSchema,
     /** Package-specific doctor checks. */
     doctor: z.array(DoctorCheckSchema).default([]),
+    /**
+     * Declarative repair recipes — what `linuxify fix` should do when this
+     * package's doctor checks fail. Each recipe maps a failing check ID to a
+     * named repair strategy (e.g., `reinstall`, `patch-platform`, `clear-cache`).
+     * The diagnosis engine looks these up by `checkId` before falling back to
+     * the built-in generic rules.
+     *
+     * Example:
+     * ```yaml
+     * repair:
+     *   - when: cline.binary
+     *     strategy: reinstall
+     *     description: "Reinstall Cline and re-apply patches"
+     *     steps:
+     *       - linuxify remove cline
+     *       - linuxify add cline
+     *   - when: compat.platform
+     *     strategy: patch-platform
+     *     steps:
+     *       - linuxify patch cline
+     * ```
+     */
+    repair: z.array(RepairRecipeSchema).default([]),
     /** Run-time permissions the package requests. */
     permissions: PermissionsSchema,
     /** Free-form maintainer notes shown in `linuxify info`. */

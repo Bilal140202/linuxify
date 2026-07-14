@@ -1,0 +1,214 @@
+# Bug Report issue form for the Linuxify project.
+#
+# This template uses GitHub's issue-forms YAML schema (syntax documented at
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms).
+# The schema is stricter than legacy markdown templates: every field is typed,
+# validations are explicit, and the form renders as an interactive UI on the
+# "New issue" page. Edit with care — GitHub will reject malformed YAML at
+# issue-creation time, and a broken template blocks every bug report.
+#
+# Design notes for maintainers:
+# - Fields are ordered worst-case-first: the triager needs the package, version,
+#   distro, runtime, and doctor output before anything else, because those five
+#   values determine whether the bug is reproducible at all.
+# - The `linuxify doctor --markdown` field is required and rendered as a code
+#   block (`render: markdown`) so that doctor output preserves its table
+#   formatting. Without this, doctor tables collapse in the issue body and
+#   triagers have to ask the reporter to re-paste.
+# - Reproducibility is a dropdown (not free text) so that the triager can sort
+#   the issue queue by "yes-always" first.
+# - The logs field is collapsible (`render: shell` plus an HTML <details>
+#   wrapper via the `value` markdown) so that long logs do not dominate the
+#   issue body. The reporter still pastes the full log; the UI just hides it.
+# - Workaround is optional and at the end, because most reporters will not have
+#   one, and asking for it upfront adds friction.
+
+name: Bug Report
+description: File a bug report to help us reproduce and fix a problem with Linuxify.
+title: "[bug]: "
+labels: ["bug", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        Before you fill this out:
+        - Search [existing issues](https://github.com/linuxify/linuxify/issues?q=is%3Aissue+label%3Abug) to avoid duplicates.
+        - Update to the latest Linuxify (`linuxify self-update`) and re-test. Many bugs are already fixed.
+        - Run `linuxify doctor --markdown` and have the output ready — we ask for it below.
+
+        The more precise you are, the faster we can reproduce and fix. Vague reports ("it doesn't work") get closed; precise reports (with a transcript, a doctor dump, and a repro) get fixed.
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Which package is affected? If the bug is in the Linuxify CLI itself (not in an installed tool), choose "linuxify core".
+      options:
+        - linuxify core
+        - cline
+        - codex
+        - aider
+        - goose
+        - gemini-cli
+        - openhands
+        - freebuff
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Linuxify version
+      description: Run `linuxify --version` and paste the full output here. Include the commit hash if shown.
+      placeholder: "linuxify 0.3.2 (commit abc1234, built 2026-04-12)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: distro
+    attributes:
+      label: Distro
+      description: Which proot distro are you running inside? Run `linuxify use` (no args) to check.
+      options:
+        - ubuntu (default)
+        - debian
+        - arch
+        - alpine
+        - custom
+    validations:
+      required: true
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      description: Which runtime does the affected package use? If the bug is in Linuxify core (not a package), choose the runtime you bootstrapped with.
+      options:
+        - node
+        - python
+        - rust
+        - go
+        - bun
+        - deno
+        - not applicable
+    validations:
+      required: true
+
+  - type: input
+    id: android-version
+    attributes:
+      label: Android version
+      description: The Android version on your device. Find it in Settings → About phone → Software info.
+      placeholder: "Android 14, One UI 6.1, security patch 2026-03-01"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Your phone or tablet model. Include the SoC if you know it (helps with arm-specific bugs).
+      placeholder: "Pixel 7 (Tensor G2, aarch64) / Samsung Galaxy S22 (Snapdragon 8 Gen 1, aarch64)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Doctor output
+      description: Run `linuxify doctor --markdown` inside the affected Termux session and paste the **full** output here. Do not edit or truncate. This is the single most useful field for triage.
+      render: markdown
+      placeholder: |
+        Linuxify v0.3.2
+        ────────────────────────────────────────
+        Operating System   Ubuntu 24.04 (proot)
+        Architecture       aarch64
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-did-you-do
+    attributes:
+      label: What did you do?
+      description: List the exact commands you ran, in order. Include any flags, environment variables, or config files you set. If you can, paste the actual shell session.
+      render: shell
+      placeholder: |
+        $ linuxify add cline
+        $ cline --help
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-did-you-expect
+    attributes:
+      label: What did you expect?
+      description: What did you think was going to happen? Be specific — "I expected `cline --help` to print the help text and exit 0."
+      placeholder: "I expected `cline --help` to print the help text and exit 0."
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-actually-happened
+    attributes:
+      label: What actually happened?
+      description: Paste the **full** error output, including stack traces, error objects, and any non-zero exit codes. Use a code block. Do not summarize — paste verbatim.
+      render: shell
+      placeholder: |
+        $ cline --help
+        Error: ENOENT: no such file or directory, open '/data/data/com.termux/files/usr/lib/node_modules/cline/dist/platform.js'
+            at Object.openSync (fs.js:476:3)
+            ...
+        Exit code: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: Can you reproduce?
+      description: How reliably does this happen when you repeat the same steps?
+      options:
+        - "yes-always — happens every time"
+        - "sometimes — happens intermittently"
+        - "no — happened once and I can't get it to happen again"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Run `linuxify logs` and paste the relevant log lines (or the entire log if it's short). Wrap in a `<details>` block if it's longer than 100 lines.
+      render: shell
+      placeholder: |
+        <details>
+        <summary>linuxify logs (click to expand)</summary>
+
+        2026-04-12T14:32:01Z INFO  linuxify.add starting package=cline
+        2026-04-12T14:32:02Z INFO  linuxify.add.install running npm install -g cline
+        2026-04-12T14:32:14Z ERROR linuxify.add.patch patch_failed file=platform.js
+        ...
+        </details>
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: If you found a way to work around the bug (a different command, a manual patch, an older version), describe it here. This helps other users who hit the same bug while we work on a fix.
+      placeholder: "Downgrading to linuxify 0.3.1 with `pkg install linuxify=0.3.1` works around the issue, but loses the Alpine support I needed."
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        Thanks for the report. A maintainer will triage this within 72 hours. If you can, drop a note in `#support` on [Discord](https://discord.gg/linuxify) with a link to this issue — it helps us correlate reports faster.

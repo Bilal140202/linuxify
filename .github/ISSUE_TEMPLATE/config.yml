@@ -1,0 +1,65 @@
+# Issue template chooser config for the Linuxify project.
+#
+# This is the config.yml file GitHub looks for in .github/ISSUE_TEMPLATE/ to
+# customize the issue-template chooser page (the page users see when they
+# click "New issue"). Documentation:
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository#configuring-the-template-chooser
+#
+# Design notes for maintainers:
+# - `blank_issues_enabled: false` forces every issue through one of the
+#   templates. This is a deliberate trade-off: it adds one click for the
+#   reporter but produces dramatically better-triaged issues. If a reporter
+#   really does need a freeform issue, GitHub Discussions is the right
+#   venue — link it below.
+# - The `contact_links` array surfaces non-issue entry points on the chooser
+#   page. Each link has a name, URL, and an `about` blurb. The order below
+#   is the order they appear on the page; the most-used links go first.
+# - The Discord link is first because most "issues" are actually support
+#   questions, and Discord's `#support` channel resolves them faster than
+#   an issue thread. Putting Discord first routes that traffic away from
+#   the issue tracker.
+# - The Discussions link is second because feature-flavored questions
+#   ("would X be possible?") are better as discussions than as issues.
+# - The docs link is third because many "issues" are docs questions that
+#   the reporter could answer themselves with a search.
+# - The security link is last but is critical: security reports MUST NOT
+#   be filed as public issues. The link below goes to the private
+#   security advisory flow, which is the only accepted channel for
+#   security reports.
+
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 Ask on Discord
+    url: https://discord.gg/linuxify
+    about: |
+      Got a support question, a setup problem, or a "is X possible?" query?
+      The fastest answer is in our Discord's #support channel. Most issues
+      filed as bug reports are actually support questions; Discord resolves
+      them in minutes instead of days.
+
+  - name: 💡 Start a discussion
+    url: https://github.com/linuxify/linuxify/discussions/new
+    about: |
+      Have a feature idea that is not yet ready for a formal feature request?
+      Want to brainstorm a design, gauge community interest, or share a use
+      case? Start a GitHub Discussion. Discussions are where the project's
+      design conversations happen before they become issues or PRs.
+
+  - name: 📚 Read the docs
+    url: https://linuxify.sh/docs
+    about: |
+      The full Linuxify documentation set — CLI reference, package spec,
+      plugin SDK, troubleshooting, FAQ. If your question is "how do I do X?",
+      the answer is probably already in the docs. Search before opening an
+      issue; you will get your answer faster.
+
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/linuxify/linuxify/security/advisories/new
+    about: |
+      Found a security issue? DO NOT open a public issue. Use GitHub's
+      private security advisory flow at the link above, or email
+      security@linuxify.sh. Our security policy is at
+      https://github.com/linuxify/linuxify/blob/main/SECURITY.md. We
+      acknowledge security reports within 24 hours and coordinate fixes
+      under embargo.

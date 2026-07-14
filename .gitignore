@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+.cache/
+
+# Test output
+coverage/
+.nyc_output/
+test-results/
+junit.xml
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Linuxify local state (when running tests locally)
+.linuxify/
+linuxify-test-home/
+
+# Bundle artifacts
+*.tar.zst
+*.bundle
+
+# Private keys / secrets (NEVER commit)
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+KEYS.private
+
+# Misc
+.history/
+*.bak
+*.orig

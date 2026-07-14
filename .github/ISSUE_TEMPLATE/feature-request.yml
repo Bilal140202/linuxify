@@ -1,0 +1,105 @@
+# Feature Request issue form for the Linuxify project.
+#
+# Uses GitHub's issue-forms YAML schema (syntax:
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms).
+#
+# Design notes for maintainers:
+# - Feature requests are routed to a different triage queue than bug reports
+#   (label `enhancement`, not `bug`). The label is set in the YAML frontmatter.
+# - The Problem / Proposed Solution / Alternatives Considered triplet is the
+#   standard "RFI" pattern: it forces the requester to articulate the underlying
+#   need before jumping to a solution, which produces dramatically better
+#   feature requests than "it would be cool if …" openers.
+# - The "Use case frequency" dropdown gives the triager a quantitative signal:
+#   daily-use features get prioritized over once-a-year features, all else
+#   equal.
+# - The "Willing to contribute?" dropdown is the most important field for
+#   prioritization. A feature request from someone who will write the code is
+#   almost always higher-priority than one from someone who will not, because
+#   the maintainer team is small and contributor-led features keep the project
+#   healthy.
+# - We do NOT ask for a "proposed implementation" here. That belongs in a
+#   design discussion or a PR. Asking for it in the issue template leads to
+#   premature commitment to an implementation that may be wrong.
+
+name: Feature Request
+description: Suggest a new feature or an improvement to an existing one.
+title: "[feat]: "
+labels: ["enhancement", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a feature.
+
+        Before you fill this out:
+        - Search [existing issues](https://github.com/linuxify/linuxify/issues?q=is%3Aissue+label%3Aenhancement) for duplicates.
+        - Check the [roadmap](https://linuxify.sh/docs/15-roadmap/release-roadmap) — your feature may already be planned.
+        - Skim the [Plugin SDK docs](https://linuxify.sh/docs/10-plugin-sdk/plugin-sdk) — your feature may be possible as a plugin, which is faster to ship.
+
+        A good feature request articulates the **problem** before the solution. We have shipped better features when the request started with "I am trying to do X and Linuxify does not let me" than when it started with "Linuxify should add a `--foo` flag."
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that Linuxify does not let you do? Describe the real-world task you are blocked on, not the abstract feature you think would solve it.
+      placeholder: |
+        I am trying to run Linuxify on two distros simultaneously — Ubuntu for my AI tools and Alpine for a small Go project — and switch between them in the same shell session without losing state. Today, `linuxify use` swaps the active distro globally, so I cannot have two distros "live" at once.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would the ideal experience look like, from the user's perspective? You do not need to design the implementation — describe the outcome.
+      placeholder: |
+        I would like to be able to `linuxify use ubuntu --shell` to open a subshell scoped to Ubuntu, and `linuxify use alpine --shell` to open a separate subshell scoped to Alpine. Each subshell would have its own `$PATH`, its own installed packages, and would not interfere with the other.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other ways have you tried to solve this? Why did they not work? This helps us understand the design space and avoid re-suggesting something you already ruled out.
+      placeholder: |
+        - I tried running two Termux sessions, one with `LINUXIFY_DISTRO=ubuntu` and one with `LINUXIFY_DISTRO=alpine`. The env var override works, but the second `linuxify use` rewrites `~/.linuxify/state.json`, so when I close the first session its state is wrong.
+        - I tried symlinking `~/.linuxify-ubuntu` and `~/.linuxify-alpine` and switching `LINUXIFY_HOME`. This works but breaks `linuxify doctor`, which hardcodes `~/.linuxify`.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Use case frequency
+      description: How often do you run into this problem? Be honest — "once" is a valid answer and will not get the issue closed; it just affects prioritization.
+      options:
+        - "daily — I hit this every time I use Linuxify"
+        - "weekly — I hit this most weeks"
+        - "monthly — I hit this occasionally"
+        - "once — I hit this one time and worked around it"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Willing to contribute?
+      description: How much skin are you willing to put in the game? This is the single most important field for prioritization — contributor-led features ship faster.
+      options:
+        - "yes-code — I am willing to open a PR with the implementation"
+        - "yes-docs — I am willing to write the docs and design notes"
+        - "yes-test — I am willing to test a PR and report back"
+        - "no-but-vocal — I cannot contribute, but I will cheer from the sidelines and answer questions"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        Thanks for the suggestion. A maintainer will triage this within a week. Feature requests live or die on community interest — if you want this feature, comment on the issue, react with a 👍, and share it in `#general` on [Discord](https://discord.gg/linuxify).

@@ -1,0 +1,145 @@
+# Package Request issue form for the Linuxify project.
+#
+# Uses GitHub's issue-forms YAML schema (syntax:
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms).
+#
+# Design notes for maintainers:
+# - Package requests are the highest-leverage contribution a community member
+#   can make — every new `packages/<tool>.yml` is a real, useful, reviewable
+#   contribution that immediately benefits every Linuxify user. This template
+#   is designed to convert a "wishlist" issue into a "drafted YAML" PR as
+#   fast as possible.
+# - The "Willing to write the package YAML?" field is the routing key. Issues
+#   marked `yes-confident` get a maintainer's attention first (because they
+#   are one review away from merge); issues marked `yes-need-help` get
+#   paired with a maintainer or an experienced contributor; issues marked
+#   `no-sorry` go into the backlog and are picked up when bandwidth allows.
+# - The "Have you tried installing manually?" field is critical: it tells us
+#   whether the request is feasible (the tool runs on Android at all) and
+#   surfaces the specific patches the YAML will need.
+# - The runtime and distro dropdowns match the bug-report template so that
+#   the triage queue can be filtered consistently across templates.
+# - We do NOT ask for a "proposed YAML" here. That belongs in a PR. The
+#   [Package Spec](https://linuxify.sh/docs/09-registry/package-spec) is the
+#   place to learn the YAML format; we link it in the closing markdown.
+
+name: Package Request
+description: Request a new CLI tool be added to the Linuxify package registry.
+title: "[pkg]: "
+labels: ["package-request", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to request a new package.
+
+        Before you fill this out:
+        - Search [existing packages](https://linuxify.sh/packages) — your tool may already be supported.
+        - Search [existing issues](https://github.com/linuxify/linuxify/issues?q=is%3Aissue+label%3Apackage-request) for duplicates.
+        - Read the [Package Spec](https://linuxify.sh/docs/09-registry/package-spec) — every package is a single YAML file, and the format is short.
+
+        A package request is the fastest path to contributing to Linuxify. If you can install the tool manually on Android, you can almost certainly write the YAML for it — and we will help you through the PR.
+
+  - type: input
+    id: package-name
+    attributes:
+      label: Package name
+      description: The name users will type after `linuxify add`. Use the upstream tool's CLI name (lowercase, no version suffix). If the tool has multiple binaries, pick the canonical one.
+      placeholder: "aider"
+    validations:
+      required: true
+
+  - type: input
+    id: upstream-url
+    attributes:
+      label: Upstream URL
+      description: A link to the tool's official source — GitHub repo, official docs, or homepage. We use this to verify license, check for known Android issues, and credit the upstream.
+      placeholder: "https://github.com/Aider-AI/aider"
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why do you want this?
+      description: What do you use this tool for, and why is Linuxify the right way to run it on Android? One paragraph is enough — we are trying to understand the use case, not read a marketing pitch.
+      placeholder: |
+        Aider is an AI pair programmer that runs in the terminal, similar to Cline but with a different model-agency design. I use it on my laptop for small refactors and would love to run it on my phone for the same task when I am away from my desk.
+    validations:
+      required: true
+
+  - type: textarea
+    id: manual-install
+    attributes:
+      label: Have you tried installing manually?
+      description: Walk us through what happened when you tried to install and run the tool inside Termux + proot without Linuxify. Even a failed attempt is useful — it tells us what patches the YAML will need.
+      render: shell
+      placeholder: |
+        $ pkg install proot-distro
+        $ proot-distro install ubuntu
+        $ proot-distro login ubuntu
+        # inside proot:
+        $ apt update && apt install -y nodejs npm
+        $ npm install -g aider
+        $ aider --help
+        Error: Cannot find module 'node:fs'
+            at ...
+        # Looks like the npm-installed binary expects a newer Node than Ubuntu ships.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      description: Which runtime does the tool require? If the tool supports multiple runtimes (e.g., a CLI written in TypeScript that can run on Node, Bun, or Deno), pick the one the upstream recommends.
+      options:
+        - node
+        - python
+        - rust
+        - go
+        - bun
+        - deno
+        - other / multiple
+    validations:
+      required: true
+
+  - type: dropdown
+    id: distro
+    attributes:
+      label: Distro
+      description: Which proot distro did you test the tool on (or which do you expect it to work on)?
+      options:
+        - ubuntu (default)
+        - debian
+        - arch
+        - alpine
+        - not yet tested
+    validations:
+      required: true
+
+  - type: dropdown
+    id: willing-to-write-yaml
+    attributes:
+      label: Willing to write the package YAML?
+      description: This is the single most important field. A package request with a willing author is one review away from merge; a request without one goes into the backlog.
+      options:
+        - "yes-confident — I have read the Package Spec and can open a PR with the YAML"
+        - "yes-need-help — I am willing to try, but I need a maintainer to pair with me"
+        - "no-sorry — I cannot write the YAML, but I can test a PR when one is opened"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        **Next steps:**
+
+        - If you picked `yes-confident`: open a PR with `packages/<name>.yml` and link this issue in the PR description. A maintainer will review within 72 hours.
+        - If you picked `yes-need-help`: drop a note in `#package-requests` on [Discord](https://discord.gg/linuxify) with a link to this issue, and a maintainer or experienced contributor will pair with you.
+        - If you picked `no-sorry`: this issue goes into the backlog. Watch the issue for updates — when a contributor picks it up, they will @-mention you to test.
+
+        Thanks for the request. Every package makes Linuxify more useful.

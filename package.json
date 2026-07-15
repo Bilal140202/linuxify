@@ -72,7 +72,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.15.0",
     "@types/iarna__toml": "^2.0.5",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.0",

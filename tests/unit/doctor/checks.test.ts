@@ -89,7 +89,7 @@ import { DEFAULT_CONFIG } from '../../../src/config/defaults.js';
 import { defaultState } from '../../../src/state/store.js';
 import type { DoctorContext } from '../../../src/doctor/types.js';
 
-const { exec: mockExec, getArch: mockGetArch, getLinuxifyHome: mockGetLinuxifyHome } = mocks;
+const { exec: mockExec, getArch: mockGetArch, getLinuxifyHome: mockGetLinuxifyHome, exists: mockExists } = mocks;
 
 /** Build a DoctorContext with the default config and an empty state. */
 function makeCtx(): DoctorContext {
@@ -259,28 +259,40 @@ describe('doctor/checks — runtime.node', () => {
 });
 
 describe('doctor/checks — bootstrap.completed', () => {
-  it('passes when all 9 stages are in completed_stages', async () => {
-    const ctx = makeCtx();
-    ctx.state.bootstrap_progress.completed_stages = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-    const r = await bootstrapCompletedCheck.run(ctx);
+  // The check now reads marker files from disk (not state.json).
+  // We mock getLinuxifyHome + exists to control which stages are "done."
+  beforeEach(() => {
+    mockGetLinuxifyHome.mockReturnValue('/home/test/.linuxify');
+  });
+
+  it('passes when all 9 stage-N.done markers exist', async () => {
+    // Simulate all 9 .done marker files present.
+    mockExists.mockImplementation(async (p: string) => {
+      return /stage-[0-8]\.done$/.test(p);
+    });
+    const r = await bootstrapCompletedCheck.run(makeCtx());
     expect(r.status).toBe('ok');
     expect(r.message).toMatch(/all 9 stages done/);
     expect(r.fixCommand).toBeUndefined();
   });
 
   it('fails when no stages are completed', async () => {
-    const ctx = makeCtx();
-    ctx.state.bootstrap_progress.completed_stages = [];
-    const r = await bootstrapCompletedCheck.run(ctx);
+    // No marker files exist.
+    mockExists.mockResolvedValue(false);
+    const r = await bootstrapCompletedCheck.run(makeCtx());
     expect(r.status).toBe('fail');
     expect(r.message).toMatch(/0\/9 stages done/);
-    expect(r.fixCommand).toBe('linuxify init --resume');
+    expect(r.fixCommand).toBe('linuxify init');
   });
 
   it('fails when only some stages are completed', async () => {
-    const ctx = makeCtx();
-    ctx.state.bootstrap_progress.completed_stages = [0, 1, 2, 3];
-    const r = await bootstrapCompletedCheck.run(ctx);
+    // Stages 0-3 are done, 4-8 are not.
+    mockExists.mockImplementation(async (p: string) => {
+      const m = /stage-(\d+)\.done$/.exec(p);
+      if (m) return parseInt(m[1], 10) <= 3;
+      return false;
+    });
+    const r = await bootstrapCompletedCheck.run(makeCtx());
     expect(r.status).toBe('fail');
     expect(r.message).toMatch(/4\/9 stages done/);
     expect(r.message).toContain('5');
@@ -290,12 +302,16 @@ describe('doctor/checks — bootstrap.completed', () => {
   });
 
   it('detail includes the missing stages array', async () => {
-    const ctx = makeCtx();
-    ctx.state.bootstrap_progress.completed_stages = [0, 1];
-    const r = await bootstrapCompletedCheck.run(ctx);
+    // Stages 0-1 are done, 2-8 are not.
+    mockExists.mockImplementation(async (p: string) => {
+      const m = /stage-(\d+)\.done$/.exec(p);
+      if (m) return parseInt(m[1], 10) <= 1;
+      return false;
+    });
+    const r = await bootstrapCompletedCheck.run(makeCtx());
     expect(r.detail).toMatchObject({
       missing: expect.arrayContaining([2, 3, 4, 5, 6, 7, 8]),
-      completed: [0, 1],
+      done: [0, 1],
     });
   });
 
@@ -333,7 +349,7 @@ describe('doctor/checks — path.linuxify_bin', () => {
     const r = await pathLinuxifyBinCheck.run(makeCtx());
     expect(r.status).toBe('fail');
     expect(r.message).toMatch(/not on PATH/);
-    expect(r.fixCommand).toBe('linuxify init --from-stage 6');
+    expect(r.fixCommand).toBe('linuxify repair paths');
   });
 
   it('fails when PATH is empty', async () => {

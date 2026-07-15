@@ -268,11 +268,17 @@ async function collectHost(warnings: string[]): Promise<Report['host']> {
 
   let termuxVersion: string | null = null;
   if (termux) {
-    try {
-      const { stdout } = await exec('pkg', ['--version'], { timeoutMs: 3000 });
-      termuxVersion = stdout.trim().split('\n')[0] || null;
-    } catch {
-      warnings.push('Could not determine Termux version');
+    // Try TERMUX_VERSION env var first (set by Termux since 0.118).
+    termuxVersion = process.env.TERMUX_VERSION ?? null;
+    // Fall back to dpkg -s com.termux (same method doctor uses).
+    if (!termuxVersion) {
+      try {
+        const { stdout } = await exec('dpkg', ['-s', 'com.termux'], { timeoutMs: 3000 });
+        const m = /Version:\s*([0-9.]+)/.exec(stdout);
+        termuxVersion = m?.[1] ?? null;
+      } catch {
+        warnings.push('Could not determine Termux version');
+      }
     }
   }
 
@@ -506,8 +512,9 @@ function formatText(r: Report, color: boolean): string {
   }
 
   lines.push(dim('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
-  lines.push(dim('Copy this report when opening a GitHub issue:'));
-  lines.push(dim('  linuxify report --markdown | clip  # or pbcopy / xclip'));
+  lines.push(dim('Copy this report when opening a GitHub issue.'));
+  lines.push(dim('Tip: long-press in Termux to select and copy, or run:'));
+  lines.push(dim('  linuxify report --markdown > report.md'));
 
   return lines.join('\n');
 }

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (v0.1.0-alpha.2)
+- **npm install works on clean clone** (was: ERESOLVE eslint/@eslint/js conflict).
+  Pinned `@eslint/js` to `^9.15.0` to match `eslint@^9.15.0`. No more
+  `--legacy-peer-deps` needed.
+- **`linuxify init --resume` no longer called** (was: unknown option). The
+  `bootstrap.completed` doctor check now suggests `linuxify init` (idempotent,
+  auto-resumes from marker files). The old `--resume` flag was never
+  implemented.
+- **`linuxify use ubuntu` no longer called before Ubuntu is installed** (was:
+  "Distro 'ubuntu' is not installed"). The `distro.installed` check now
+  suggests `linuxify init` (which installs the default distro as part of
+  bootstrap) instead of `linuxify use ubuntu` (which requires `--create` to
+  auto-install).
+- **`linuxify init --from-stage 6` no longer called without prerequisites**
+  (was: "Stage 7 verification failed — Missing state.json"). The
+  `path.linuxify_bin` check now suggests `linuxify repair paths` (targeted
+  repair that doesn't need full bootstrap) instead of `--from-stage 6` (which
+  requires stages 0-5 + state.json to exist first).
+- **Repair engine deduplicates and dependency-orders fixes.** If multiple
+  failing checks suggest the same fixCommand (e.g., both `bootstrap.completed`
+  and `distro.installed` suggest `linuxify init` on a fresh install), only one
+  runs. Fixes are also priority-ordered: bootstrap before distro, distro before
+  path. If a root-cause fix (bootstrap, host) fails, downstream fixes are
+  skipped to prevent the cascade of "stage 6 failed because stage 0 wasn't
+  done" errors.
+- **Bootstrap state mismatch between doctor and report fixed.** Doctor's
+  `bootstrap.completed` check now reads `stage-N.done` marker files from disk
+  (ground truth) instead of `state.bootstrap_progress.completed_stages` from
+  state.json (which may not exist yet on a fresh install). Both doctor and
+  report now show the same stage count.
+- **Termux version detection in report fixed.** Was calling `pkg --version`
+  (doesn't exist). Now reads `TERMUX_VERSION` env var first, falls back to
+  `dpkg -s com.termux` (same method doctor uses).
+- **Report clipboard suggestion Android-appropriate.** Was suggesting
+  `clip`/`pbcopy`/`xclip` (desktop-only). Now suggests "long-press in Termux
+  to copy" and `linuxify report --markdown > report.md`.
+- **Distro check UX improved.** "No active distro set in state.json" →
+  "No active distro. Ubuntu is not installed yet. Run: linuxify init"
+- **Bootstrap check message improved.** Now shows the next stage name (e.g.,
+  "Next: stage 0 (preflight)") and lists failed stages with their names.
+
 ### Added (v0.1.1-alpha.1)
 - **`linuxify report`** command — generates a deterministic, redacted,
   copy-pasteable environment report for bug filing. Four formats: `--text`

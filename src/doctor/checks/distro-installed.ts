@@ -8,8 +8,11 @@
  * `~/.linuxify/distros/<name>/installed` AND it appears in
  * `state.installed_distros`.
  *
- * On failure, suggests `linuxify use <name>` to install + activate the
- * distro.
+ * On failure with no active distro: suggests `linuxify init` (which installs
+ * the default distro as part of bootstrap).
+ *
+ * On failure with an active distro that's missing: suggests
+ * `linuxify distros install <name>` followed by `linuxify use <name>`.
  *
  * @packageDocumentation
  */
@@ -42,9 +45,13 @@ export const distroInstalledCheck: DoctorCheck = {
       return {
         ...base,
         status: 'fail',
-        message: 'No active distro set in state.json.',
-        detail: { activeDistro: active },
-        fixCommand: 'linuxify use ubuntu',
+        message:
+          'No active distro. Ubuntu is not installed yet. Run: linuxify init',
+        detail: { activeDistro: active, installedDistros: ctx.state.installed_distros.map((d) => d.name) },
+        // `linuxify init` installs the default distro (Ubuntu) as part of
+        // bootstrap stage 2. `linuxify use ubuntu` alone won't work because
+        // `use` doesn't auto-install (it needs `--create`).
+        fixCommand: 'linuxify init',
         fixDocs: 'https://docs.linuxify.dev/05-bootstrap/distro-management',
         durationMs: Date.now() - start,
       };
@@ -60,7 +67,8 @@ export const distroInstalledCheck: DoctorCheck = {
         status: 'fail',
         message: `Active distro '${active}' is not installed (state: ${inState}, marker: ${markerExists}).`,
         detail: { activeDistro: active, inState, markerExists, markerPath },
-        fixCommand: `linuxify use ${active}`,
+        // Two-step fix: install the distro, then activate it.
+        fixCommand: `linuxify distros install ${active} && linuxify use ${active}`,
         fixDocs: 'https://docs.linuxify.dev/05-bootstrap/distro-management',
         durationMs: Date.now() - start,
       };

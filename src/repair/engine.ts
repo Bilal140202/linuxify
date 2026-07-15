@@ -87,6 +87,106 @@ function defaultConfirm(opts: RepairOptions): (id: string, cmd: string) => Promi
 }
 
 /**
+ * Priority order for repair fixes. Lower number = higher priority = runs first.
+ *
+ * Bootstrap failures are root causes for most other failures on a fresh
+ * install, so they run first. Distro and runtime failures depend on bootstrap.
+ * PATH and network failures are usually independent.
+ */
+const CHECK_PRIORITY: Record<string, number> = {
+  'bootstrap.completed': 0, // root cause — fix first
+  'host.termux': 1, // environment prerequisite
+  'host.android': 1,
+  'host.arch': 1,
+  'host.storage': 1,
+  'host.memory': 1,
+  'distro.installed': 2, // depends on bootstrap
+  'path.proot': 3, // depends on host deps (bootstrap stage 1)
+  'runtime.node': 3, // depends on bootstrap stage 4
+  'runtime.python': 3,
+  'runtime.git': 3,
+  'path.linuxify_bin': 4, // depends on bootstrap stage 6
+  'path.termux_prefix': 4,
+  'compat.platform': 5, // depends on distro + runtimes
+  'network.dns': 9, // independent
+  'network.github': 9,
+  'network.npm': 9,
+};
+
+/**
+ * Default priority for checks not in the explicit map.
+ */
+const DEFAULT_PRIORITY = 5;
+
+/**
+ * Deduplicate and dependency-order a list of failing doctor results.
+ *
+ * Two transformations:
+ *
+ * 1. **Deduplication by fixCommand**: If multiple checks suggest the same
+ *    fixCommand (e.g., both `bootstrap.completed` and `distro.installed`
+ *    suggest `linuxify init` on a fresh install), only keep the first
+ *    occurrence. The duplicate would either succeed trivially (already fixed)
+ *    or fail identically.
+ *
+ * 2. **Dependency ordering**: Sort by {@link CHECK_PRIORITY} so bootstrap
+ *    fixes run before distro fixes, which run before PATH fixes. This
+ *    prevents the "stage 6 failed because stage 0 wasn't done" cascade.
+ *
+ * @param results - Failing doctor results with fixCommands.
+ * @returns Deduplicated, priority-ordered subset.
+ */
+function deduplicateAndOrderFixes(results: DoctorResult[]): DoctorResult[] {
+  const seen = new Set<string>();
+  const ordered = [...results].sort((a, b) => {
+    const pa = CHECK_PRIORITY[a.id] ?? DEFAULT_PRIORITY;
+    const pb = CHECK_PRIORITY[b.id] ?? DEFAULT_PRIORITY;
+    if (pa !== pb) return pa - pb;
+    return a.id.localeCompare(b.id);
+  });
+  return ordered.filter((r) => {
+    const key = r.fixCommand ?? '';
+    if (seen.has(key)) {
+      logger.info('repair: deduplicating fixCommand', {
+        checkId: r.id,
+        fixCommand: key,
+      });
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Determine which downstream fixes should be skipped after a failure.
+ *
+ * If `bootstrap.completed` fails, everything downstream (distro, runtime,
+ * path) will also fail — skip them. If `distro.installed` fails, runtime
+ * and path checks that need a distro should be skipped.
+ *
+ * @param failedCheckId - The check that just failed.
+ * @param remaining - All ordered fixes (we'll skip those after the current index).
+ * @param currentIndex - Index of the failed fix in the ordered list.
+ * @returns The fixes that should be skipped (empty if no dependencies).
+ */
+function skipDependentFixes(
+  failedCheckId: string,
+  remaining: DoctorResult[],
+  currentIndex: number,
+): DoctorResult[] {
+  // If bootstrap failed, everything downstream is dependent.
+  // If a host check failed, distro/runtime/path checks are dependent.
+  // Otherwise, just continue — most fixes are independent.
+  const isRootCause =
+    failedCheckId === 'bootstrap.completed' || failedCheckId.startsWith('host.');
+  if (!isRootCause) {
+    return [];
+  }
+  return remaining.slice(currentIndex + 1);
+}
+
+/**
  * Repair engine — orchestrates doctor → fix → doctor.
  *
  * One instance is typically created per `linuxify repair` invocation. The
@@ -150,17 +250,43 @@ export class RepairEngine {
         ? brokenWithFix.filter((r) => opts.checkIds!.includes(r.id))
         : brokenWithFix;
 
+    // 2a. Deduplicate and dependency-order the fixes.
+    //
+    // If multiple failing checks would be fixed by the same command (e.g.,
+    // bootstrap.completed, distro.installed, and path.linuxify_bin all
+    // suggest `linuxify init` on a fresh install), only run it once.
+    //
+    // Additionally, if bootstrap.completed is failing, it's the root cause
+    // for most other failures on a fresh install. We run it FIRST and skip
+    // downstream fixes that would fail without bootstrap (their fixCommand
+    // will be re-evaluated in the after-doctor run).
+    const orderedFiltered = deduplicateAndOrderFixes(filtered);
+
     logger.info('repair: found problems', {
       totalBroken: brokenWithFix.length,
       filteredTo: filtered.length,
+      orderedTo: orderedFiltered.length,
       dryRun: opts.dryRun === true,
     });
 
     // 3. Apply each fix.
     const results: RepairFixResult[] = [];
-    for (const r of filtered) {
+    for (const r of orderedFiltered) {
       const fixResult = await this.applyFix(r, opts, confirm);
       results.push(fixResult);
+      // If a fix failed, skip downstream fixes that depend on it.
+      // This prevents the cascade of "stage 6 failed because stage 0-5
+      // weren't done" errors the user reported.
+      if (!fixResult.success && !opts.dryRun) {
+        const skipped = skipDependentFixes(r.id, orderedFiltered, results.length);
+        if (skipped.length > 0) {
+          logger.info('repair: skipping dependent fixes after failure', {
+            failedCheck: r.id,
+            skipped: skipped.map((s) => s.id),
+          });
+          break;
+        }
+      }
     }
 
     // 4. Run doctor (after). In dry-run we skip the after doctor (it would

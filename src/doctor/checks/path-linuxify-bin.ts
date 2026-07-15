@@ -51,7 +51,10 @@ export const pathLinuxifyBinCheck: DoctorCheck = {
         status: 'fail',
         message: `~/.linuxify/bin (${target}) is not on PATH.`,
         detail: { target, pathEntries: entries },
-        fixCommand: 'linuxify init --from-stage 6',
+        // `linuxify repair paths` directly fixes shell rc files without
+        // needing full bootstrap. `linuxify init --from-stage 6` would also
+        // work but requires stages 0-5 to be complete first.
+        fixCommand: 'linuxify repair paths',
         fixDocs: 'https://docs.linuxify.dev/05-bootstrap/bootstrap-design',
         durationMs: Date.now() - start,
       };

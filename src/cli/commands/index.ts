@@ -24,8 +24,10 @@ import type { Command } from 'commander';
 import type { CommandContext } from '../context.js';
 
 import { registerAddCommand } from './add.js';
+import { registerAdoptCommand } from './adopt.js';
 import { registerCompletionsCommand } from './completions.js';
 import { registerConfigCommand } from './config.js';
+import { registerDiscoverCommand } from './discover.js';
 import { registerDistrosCommand } from './distros.js';
 import { registerDoctorCommand } from './doctor.js';
 import { registerEnvCommand } from './env.js';
@@ -99,6 +101,8 @@ export function registerAllCommands(
   registerInitCommand(program, getCtx, setExit);
   registerInstallCommand(program, getCtx, setExit);
   registerUseCommand(program, getCtx, setExit);
+  registerDiscoverCommand(program, getCtx, setExit);
+  registerAdoptCommand(program, getCtx, setExit);
 
   // Package lifecycle.
   registerAddCommand(program, getCtx, setExit);

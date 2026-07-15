@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (v0.1.0-alpha.5)
+- **CRITICAL: Stage 1 verification no longer uses non-existent `proot-distro
+  version` command.** The old code called `proot-distro version` (which is NOT
+  a valid subcommand) and interpreted the non-zero exit as "proot-distro not
+  executable after install" — even when proot-distro was installed, on PATH,
+  and fully functional. Fixed: now uses `proot-distro list` (the canonical
+  "is it working?" check) which exits 0 on success. Version is extracted from
+  `dpkg -s proot-distro` for logging, but old version is a warning, not a
+  failure — the `list` success is sufficient.
+
+### Added (v0.1.0-alpha.5)
+- **Environment Discovery engine** (`src/discovery/`) — scans the system for
+  existing Termux/proot/distro/runtime state before any installation. Detects:
+  - Whether proot and proot-distro are installed and working
+  - Existing proot-distro containers (ubuntu, debian, arch, alpine)
+  - Runtimes inside each container (Node, Python, Git versions)
+  - Whether Linuxify is already initialized
+  Read-only — never modifies state. This is the "understand before acting"
+  phase that makes adoption possible.
+- **`linuxify discover`** command — scans and reports what's installed.
+  Shows host environment, proot-distro containers with runtimes, and Linuxify
+  state. Use before `linuxify init` to see if you can adopt instead of
+  reinstalling.
+- **`linuxify adopt [distro]`** command — adopts an existing proot-distro
+  environment WITHOUT reinstalling. Creates ~/.linuxify/ structure, writes
+  state.json with the adopted distro, marks bootstrap stages 0-5 as complete
+  (since the distro and runtimes already exist), and generates launchers.
+  Saves 10+ minutes vs. a fresh `linuxify init` for users who already have
+  a working proot-distro setup.
+
+### Changed
+- Stage 1 verification: `proot-distro version` → `proot-distro list`
+- Old proot-distro version is now a warning, not a failure
+- Stage 1 returns `installedDistros` in details (parsed from `proot-distro list`)
+
 ### Fixed (v0.1.0-alpha.4)
 - **CRITICAL: `repair --yes` no longer crashes Termux.** The old code used
   `child_process.exec()` to run fix commands, which creates a shell with piped

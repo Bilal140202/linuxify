@@ -45,10 +45,18 @@ const PKG_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
  * Bootstrap Stage 1: install host dependencies.
  *
  * Runs `pkg update` followed by `pkg install -y <packages>` on the Termux
- * host. After installation, verifies that `proot-distro --version` exits 0
- * and reports a version >= 1.13. Failures (broken `pkg`, network down to
- * the Termux repo, etc.) are returned as `success: false` with the stderr
- * tail in `details.stderr`.
+ * host. After installation, verifies that `proot-distro` is actually usable
+ * by running `proot-distro list` (which exits 0 if proot-distro is working).
+ *
+ * **Verification method:** We use `proot-distro list` (NOT `proot-distro
+ * version` or `proot-distro --version` — neither of which is a supported
+ * subcommand). The `list` subcommand is the canonical way to check that
+ * proot-distro is installed and functional; it prints installed distros and
+ * exits 0 on success.
+ *
+ * If `proot-distro list` succeeds, we also try to extract the version from
+ * the package database (`dpkg -s proot-distro`) for logging, but we do NOT
+ * fail if the version can't be parsed — the `list` success is sufficient.
  *
  * Idempotency: `pkg install <existing-package>` is a no-op, so re-running
  * Stage 1 is safe and fast.
@@ -89,28 +97,45 @@ export async function stage1HostDeps(_ctx: BootstrapContext): Promise<StageResul
       });
     }
 
-    // 3. Verify `proot-distro --version` and parse the version.
-    const versionResult = await exec('proot-distro', ['version'], { timeoutMs: 5000 });
-    if (versionResult.exitCode !== 0) {
-      return fail(start, 'proot-distro not executable after install', {
-        exitCode: versionResult.exitCode,
-        stderr: tail(versionResult.stderr, 1000),
+    // 3. Verify proot-distro is actually usable.
+    //
+    // We use `proot-distro list` because:
+    // - `proot-distro version` is NOT a valid subcommand (causes exit 1)
+    // - `proot-distro --version` is NOT supported either
+    // - `proot-distro list` IS the canonical "is it working?" check —
+    //   it prints installed distros and exits 0 on success
+    //
+    // This fixes the alpha-test bug where Stage 1 reported "proot-distro
+    // not executable after install" even though proot-distro was installed,
+    // on PATH, and fully functional.
+    logger.info('stage 1: verifying proot-distro via `proot-distro list`');
+    const verifyResult = await exec('proot-distro', ['list'], { timeoutMs: 10000 });
+    if (verifyResult.exitCode !== 0) {
+      return fail(start, 'proot-distro not usable after install (proot-distro list failed)', {
+        exitCode: verifyResult.exitCode,
+        stderr: tail(verifyResult.stderr, 1000),
+        stdout: tail(verifyResult.stdout, 500),
       });
     }
-    const version = parseProotDistroVersion(versionResult.stdout);
-    if (!version) {
-      return {
-        success: false,
-        durationMs: Date.now() - start,
-        error: `Could not parse proot-distro version from output: ${versionResult.stdout.trim()}`,
-        details: { stdout: tail(versionResult.stdout, 500) },
-      };
+
+    // 4. Try to extract version from dpkg for logging (non-blocking —
+    //    don't fail if we can't parse it, the `list` success is sufficient).
+    let prootDistroVersion: string | undefined;
+    try {
+      const dpkgResult = await exec('dpkg', ['-s', 'proot-distro'], { timeoutMs: 5000 });
+      if (dpkgResult.exitCode === 0) {
+        prootDistroVersion = parseProotDistroVersion(dpkgResult.stdout);
+      }
+    } catch {
+      // Non-fatal — version is for logging only.
     }
-    if (compareVersion(version, MIN_PROOT_DISTRO_VERSION) < 0) {
-      return fail(
-        start,
-        `proot-distro ${version} is too old (>= ${MIN_PROOT_DISTRO_VERSION} required). Run 'pkg upgrade proot-distro'.`,
-        { version, minVersion: MIN_PROOT_DISTRO_VERSION },
+
+    // 5. Check version if we got one (warn but don't fail — the user might
+    //    have a custom build).
+    if (prootDistroVersion && compareVersion(prootDistroVersion, MIN_PROOT_DISTRO_VERSION) < 0) {
+      logger.warn(
+        { version: prootDistroVersion, minVersion: MIN_PROOT_DISTRO_VERSION },
+        'proot-distro version is below recommended minimum — proceeding anyway',
       );
     }
 
@@ -119,7 +144,8 @@ export async function stage1HostDeps(_ctx: BootstrapContext): Promise<StageResul
       durationMs: Date.now() - start,
       details: {
         packages: HOST_DEPS,
-        prootDistroVersion: version,
+        prootDistroVersion: prootDistroVersion ?? 'unknown',
+        installedDistros: parseInstalledDistros(verifyResult.stdout),
       },
     };
   } catch (e) {
@@ -159,6 +185,45 @@ function parseProotDistroVersion(stdout: string): string | undefined {
   // "1.13.0". We accept any leading non-digit prefix.
   const match = /(\d+\.\d+(?:\.\d+)?)/.exec(stdout);
   return match?.[1];
+}
+
+/**
+ * Parse the output of `proot-distro list` to extract installed distro names.
+ *
+ * Output looks like:
+ * ```
+ * Installed containers:
+ *
+ *   ubuntu
+ *   debian
+ *
+ * Log in with: proot-distro login <name>
+ * ```
+ *
+ * We extract the distro names (lines after "Installed containers:" that
+ * are non-empty and don't start with "Log in").
+ */
+function parseInstalledDistros(stdout: string): string[] {
+  const lines = stdout.split('\n');
+  const distros: string[] = [];
+  let inInstalledSection = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    if (trimmed.toLowerCase().startsWith('installed containers')) {
+      inInstalledSection = true;
+      continue;
+    }
+    if (trimmed.toLowerCase().startsWith('log in with')) {
+      inInstalledSection = false;
+      continue;
+    }
+    if (inInstalledSection && !trimmed.includes(':')) {
+      // This is a distro name
+      distros.push(trimmed);
+    }
+  }
+  return distros;
 }
 
 function compareVersion(a: string, b: string): number {

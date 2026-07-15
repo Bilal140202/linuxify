@@ -427,14 +427,17 @@ describe('stage 1 — host deps', () => {
     expect(result.error).toMatch(/pkg update failed/);
   });
 
-  it('returns success:false when proot-distro version is too old', async () => {
+  it('succeeds when proot-distro list works (even with old version — warns, not fails)', async () => {
+    // The new verification uses `proot-distro list` (not `proot-distro version`).
+    // Old version is a warning, not a failure — the `list` success is sufficient.
     mockExec
       .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' }) // pkg update
       .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' }) // pkg install
-      .mockResolvedValueOnce({ exitCode: 0, stdout: 'proot-distro v1.10.0\n', stderr: '' }); // version
+      .mockResolvedValueOnce({ exitCode: 0, stdout: 'Installed containers:\n\n  ubuntu\n', stderr: '' }) // proot-distro list
+      .mockResolvedValueOnce({ exitCode: 0, stdout: 'Version: 1.10.0\n', stderr: '' }); // dpkg -s proot-distro (for version logging)
     const result = await stage1HostDeps(makeContext());
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/too old/);
+    expect(result.success).toBe(true); // succeeds even with old version
+    expect(result.details).toHaveProperty('prootDistroVersion', '1.10.0');
   });
 
   it('returns success:false (not throw) when exec rejects', async () => {

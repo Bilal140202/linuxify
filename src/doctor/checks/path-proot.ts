@@ -49,6 +49,12 @@ export const pathProotCheck: DoctorCheck = {
   name: 'PATH: proot',
   category: 'path',
   profile: ['standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that `proot` and `proot-distro` are installed and on your PATH.',
+    why: 'proot is the syscall-translating tool that lets Linuxify run a real Ubuntu filesystem inside Termux without root. proot-distro is a helper that manages distro installations (install, login, remove). Both are Termux packages installed during bootstrap stage 1.',
+    consequence: 'Without proot, Linuxify cannot enter the Ubuntu environment at all. Every `linuxify run`, `linuxify shell`, and `linuxify add` will fail because there is no way to enter the distro.',
+    fix: 'pkg install proot proot-distro',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

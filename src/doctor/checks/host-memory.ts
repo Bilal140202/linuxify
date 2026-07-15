@@ -53,6 +53,12 @@ export const hostMemoryCheck: DoctorCheck = {
   name: 'Memory',
   category: 'host',
   profile: ['standard', 'deep', 'ci'],
+  explain: {
+    what: 'Verifies that your device has at least 1 GB of free RAM.',
+    why: 'proot adds overhead to every process. Running Node.js + a CLI inside proot on a low-RAM device can cause OOM kills. 1 GB is the minimum for basic operation; 2+ GB is recommended for larger CLIs.',
+    consequence: 'CLIs may crash with SIGKILL (out of memory). Bootstrap stage 3 (apt install) is particularly memory-intensive and may fail.',
+    fix: 'Close other apps before running Linuxify. On devices with <4 GB RAM, avoid running multiple CLIs simultaneously.',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

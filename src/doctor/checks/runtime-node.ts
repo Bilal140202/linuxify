@@ -41,6 +41,12 @@ export const runtimeNodeCheck: DoctorCheck = {
   name: 'Node.js',
   category: 'runtime',
   profile: ['minimal', 'standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that Node.js is installed inside the active distro and is version 20 or newer.',
+    why: 'Most AI coding CLIs (Cline, Codex, Goose, Gemini CLI) are Node.js applications. They need Node to run. Linuxify installs Node LTS during bootstrap stage 4, but it can be removed by accident or corrupted by an update.',
+    consequence: "CLIs that depend on Node won't start. `linuxify add cline` will fail because `npm install -g cline` requires Node.",
+    fix: 'linuxify runtimes install node lts',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

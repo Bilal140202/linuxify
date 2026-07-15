@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (v0.1.0-alpha.3)
+- **`linuxify doctor --explain`** — for each failing check, shows a detailed
+  "why this matters" explanation: What this checks, Why it matters, If not
+  fixed (concrete consequence), and Recommended fix. Written for new users
+  who don't know what PATH is, what proot does, or why `process.platform`
+  matters. All 18 built-in checks now have explanation text.
+- **Repair execution plan (apt/brew-style).** `linuxify repair` now shows a
+  phased plan before executing:
+  ```
+  Linuxify Repair Plan
+  1. Bootstrap → linuxify init
+  2. Environment → pkg install termux
+  3. PATH → linuxify repair paths, pkg install proot-distro
+  Total: 4 step(s) across 3 phase(s).
+  Proceed with repair? (y/N)
+  ```
+  Fixes are grouped into phases (Bootstrap, Environment, Distro, Runtime,
+  PATH, Compatibility, Network) and deduplicated. If a root-cause phase
+  (Bootstrap, Environment) fails, downstream phases are skipped.
+- **ADR-016: Bootstrap as a Dependency Graph** (proposed) — documents the
+  future refactor from numbered stages (0-8) to a dependency graph where
+  each stage declares prerequisites. Defers to v0.2.0; current numbered
+  model is stable for v0.1.
+- **Clean Clone CI workflow** (`.github/workflows/clean-clone.yml`) —
+  verifies that a completely fresh `git clone → npm install → typecheck →
+  test → build → CLI smoke test → npm pack → PII check` succeeds on every
+  PR. This is the "works on a clean machine" gate before npm publish.
+
+### Changed
+- `DoctorCheck` interface now has an optional `explain` field
+  (`DoctorExplanation`) for the "why this matters" text shown by
+  `doctor --explain`.
+- `DoctorExplanation` type added: `what`, `why`, `consequence`, `fix`.
+- All 18 built-in doctor checks now provide `explain` metadata.
+
 ### Fixed (v0.1.0-alpha.2)
 - **npm install works on clean clone** (was: ERESOLVE eslint/@eslint/js conflict).
   Pinned `@eslint/js` to `^9.15.0` to match `eslint@^9.15.0`. No more

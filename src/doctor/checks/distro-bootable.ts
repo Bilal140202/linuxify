@@ -28,6 +28,12 @@ export const distroBootableCheck: DoctorCheck = {
   name: 'Distro bootable',
   category: 'distro',
   profile: ['standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that the active distro can actually execute commands (tries running `true` inside proot).',
+    why: "A distro can be 'installed' (rootfs present) but not 'bootable' (proot crashes when entering it). This happens after Android OS updates that change kernel behavior, or if the rootfs got corrupted.",
+    consequence: "`linuxify run`, `linuxify shell`, and `linuxify add` will all fail. The distro exists on disk but can't be entered.",
+    fix: 'Reinstall the distro: `linuxify distros uninstall <name> && linuxify distros install <name>`',
+  },
 
   async run(ctx: DoctorContext): Promise<DoctorResult> {
     const start = Date.now();

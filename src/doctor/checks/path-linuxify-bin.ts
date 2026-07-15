@@ -31,6 +31,12 @@ export const pathLinuxifyBinCheck: DoctorCheck = {
   name: 'PATH: linuxify/bin',
   category: 'path',
   profile: ['minimal', 'standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that `~/.linuxify/bin` is on your shell PATH. This is the directory where Linuxify installs launcher shims — small shell scripts that let you type `cline` instead of `linuxify run cline`.',
+    why: 'When you run `linuxify add cline`, Linuxify creates a launcher script at `~/.linuxify/bin/cline` that enters proot and runs the real Cline binary. For the `cline` command to work from any terminal, `~/.linuxify/bin` must be on your PATH, just like `/usr/bin` or `/data/data/com.termux/files/usr/bin`.',
+    consequence: 'Commands like `cline`, `codex`, `aider` won\'t be found. You\'d have to type the full path (`~/.linuxify/bin/cline`) or use `linuxify run cline` every time.',
+    fix: 'linuxify repair paths',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

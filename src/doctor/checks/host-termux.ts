@@ -55,6 +55,12 @@ export const hostTermuxCheck: DoctorCheck = {
   name: 'Termux',
   category: 'host',
   profile: ['minimal', 'standard', 'deep', 'pre-flight', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that Termux is installed and is the F-Droid build (not the Google Play Store build, which is unmaintained since 2020).',
+    why: 'Linuxify runs on top of Termux. The Play Store version of Termux is frozen at an old version with broken package repositories and no exec() support. Only the F-Droid build gets updates and has the proot compatibility Linuxify needs.',
+    consequence: 'Without a working Termux, nothing else in Linuxify can run — bootstrap, packages, and doctor all depend on Termux being present and functional.',
+    fix: 'Install Termux from F-Droid (https://f-droid.org/packages/com.termux/). Do NOT use the Google Play Store version.',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

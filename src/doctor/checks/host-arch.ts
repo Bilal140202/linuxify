@@ -28,6 +28,12 @@ export const hostArchCheck: DoctorCheck = {
   name: 'Architecture',
   category: 'host',
   profile: ['minimal', 'standard', 'deep', 'pre-flight', 'post-install', 'ci'],
+  explain: {
+    what: "Verifies that your device's CPU architecture is supported (aarch64, armv7l, or x86_64).",
+    why: 'Linuxify ships pre-built binaries for the three common Android architectures. aarch64 (64-bit ARM) is the primary target. armv7l (32-bit ARM) is best-effort. x86_64 is for Chromebooks and Android-x86.',
+    consequence: 'If your architecture is unsupported, downloads will fail because there is no matching rootfs or Node binary. This is rare but happens on exotic hardware.',
+    fix: "Linuxify cannot run on this architecture. File an issue with your device's CPU info so we can consider adding support.",
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

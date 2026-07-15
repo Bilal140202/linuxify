@@ -34,6 +34,12 @@ export const networkNpmCheck: DoctorCheck = {
   name: 'npm registry reachable',
   category: 'network',
   profile: ['deep', 'ci'],
+  explain: {
+    what: 'Verifies that registry.npmjs.org is reachable (npm packages come from there).',
+    why: 'Most Node-based CLIs (Cline, Codex, Goose) are installed via `npm install -g`. If the npm registry is unreachable, these installs fail.',
+    consequence: '`linuxify add cline` will fail at the `npm install -g cline` step. Python packages (via pip) are unaffected — they use PyPI.',
+    fix: 'Check if npm registry is blocked. Try again later (npm sometimes has outages). Use `linuxify add --offline` if you have a pre-bundled package.',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

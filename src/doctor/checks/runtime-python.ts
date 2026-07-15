@@ -42,6 +42,12 @@ export const runtimePythonCheck: DoctorCheck = {
   name: 'Python',
   category: 'runtime',
   profile: ['standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that Python 3.10+ is installed inside the active distro.',
+    why: 'Some CLIs (Aider, Claude Code) are Python applications. They need Python to run. Linuxify installs Python 3.12 during bootstrap stage 4.',
+    consequence: "Python-based CLIs won't start. `linuxify add aider` will fail because `pip install aider-chat` requires Python.",
+    fix: 'linuxify runtimes install python 3.12',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

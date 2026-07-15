@@ -32,6 +32,12 @@ export const compatPlatformCheck: DoctorCheck = {
   name: 'process.platform',
   category: 'compat',
   profile: ['standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that `process.platform` reports `linux` inside the proot environment (not `android`).',
+    why: "Many Node.js CLIs check `process.platform === 'linux'` and refuse to run on Android. Inside proot, the kernel is still Android, so `process.platform` returns `android`. Linuxify's patcher fixes this by patching the CLI's source code to accept `android` as a Linux variant.",
+    consequence: "CLIs will crash with 'Unsupported platform: android-arm64' even though they're running inside a Linux distro. This is the #1 compatibility issue Linuxify exists to solve.",
+    fix: 'linuxify patch --all',
+  },
 
   async run(ctx: DoctorContext): Promise<DoctorResult> {
     const start = Date.now();

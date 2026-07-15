@@ -23,6 +23,12 @@ export const pathTermuxPrefixCheck: DoctorCheck = {
   name: 'PATH: $PREFIX/bin',
   category: 'path',
   profile: ['standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: "Verifies that Termux's `$PREFIX/bin` is on your PATH (where `pkg`, `proot`, and other Termux tools live).",
+    why: 'Termux sets this up automatically, but it can be lost if you modify your shell rc files or use a non-default shell. Linuxify relies on Termux tools being available.',
+    consequence: "Linuxify won't be able to find `pkg`, `proot`, or other Termux tools. Bootstrap will fail at stage 1.",
+    fix: 'Add `export PATH="$PREFIX/bin:$PATH"` to your ~/.bashrc (or ~/.zshrc).',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

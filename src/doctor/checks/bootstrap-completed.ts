@@ -85,6 +85,12 @@ export const bootstrapCompletedCheck: DoctorCheck = {
   name: 'Bootstrap completed',
   category: 'bootstrap',
   profile: ['minimal', 'standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that all 9 bootstrap stages (preflight, host deps, rootfs, first-boot, runtimes, home setup, PATH, verify, tips) completed successfully.',
+    why: 'Bootstrap is the one-time setup that turns a fresh Termux install into a working Linuxify environment. It installs proot, downloads the Ubuntu rootfs, installs Node and Python, and wires up your PATH. Without it, there is no Linux environment to run CLIs in.',
+    consequence: 'If bootstrap is incomplete, no packages can be installed or run. `linuxify add cline` will fail because there is no distro to install into.',
+    fix: 'linuxify init',
+  },
 
   async run(_ctx: DoctorContext): Promise<DoctorResult> {
     const start = Date.now();

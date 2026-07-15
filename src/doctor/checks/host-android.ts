@@ -29,6 +29,12 @@ export const hostAndroidCheck: DoctorCheck = {
   name: 'Android',
   category: 'host',
   profile: ['minimal', 'standard', 'deep', 'pre-flight', 'post-install', 'ci'],
+  explain: {
+    what: "Verifies that you're running Android 9 (API 28) or newer.",
+    why: 'Older Android versions lack kernel features that proot needs (specifically, certain seccomp and ptrace behaviors). Android 9 is the minimum Termux itself supports.',
+    consequence: 'proot may segfault or hang on older Android versions. Bootstrap will fail during stage 2 (rootfs download) or stage 3 (first-boot apt install).',
+    fix: "Update your device's Android version to 9 or newer. If your device is no longer supported by the manufacturer, Linuxify cannot help.",
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

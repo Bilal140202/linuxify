@@ -31,6 +31,12 @@ export const distroInstalledCheck: DoctorCheck = {
   name: 'Distro installed',
   category: 'distro',
   profile: ['minimal', 'standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that an active Linux distribution (Ubuntu by default) is installed inside proot and ready to use.',
+    why: 'Linuxify doesn\'t run CLIs directly on Android — it runs them inside a real Linux distro (Ubuntu) that lives inside proot. The distro provides glibc, apt, and the standard Linux filesystem hierarchy that CLIs expect. Without a distro, there is no Linux environment to run anything in.',
+    consequence: 'If no distro is installed, `linuxify add cline` and `linuxify run cline` will both fail. There is no Ubuntu to install Cline into.',
+    fix: 'linuxify init',
+  },
 
   async run(ctx: DoctorContext): Promise<DoctorResult> {
     const start = Date.now();

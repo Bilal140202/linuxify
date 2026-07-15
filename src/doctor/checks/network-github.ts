@@ -33,6 +33,12 @@ export const networkGithubCheck: DoctorCheck = {
   name: 'GitHub reachable',
   category: 'network',
   profile: ['deep', 'ci'],
+  explain: {
+    what: 'Verifies that github.com is reachable (the Linuxify registry and source code live there).',
+    why: "The Linuxify registry is a git repository on GitHub. `linuxify update` pulls from it, and `linuxify search` queries it. If GitHub is blocked, you can't discover or install packages.",
+    consequence: "`linuxify search` and `linuxify add` will fail because the registry can't be updated. Existing packages still work (they're already installed).",
+    fix: 'Check if GitHub is blocked on your network. Use a VPN if necessary. For air-gapped environments, see `linuxify bundle` for offline installation.',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

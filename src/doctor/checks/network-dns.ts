@@ -33,6 +33,12 @@ export const networkDnsCheck: DoctorCheck = {
   name: 'DNS',
   category: 'network',
   profile: ['deep', 'ci'],
+  explain: {
+    what: 'Verifies that DNS resolution works (can resolve hostnames like github.com).',
+    why: "Bootstrap downloads the Ubuntu rootfs from Ubuntu's CDN, and package installs pull from npm/PyPI. All of these require working DNS. Corporate networks and some mobile carriers intercept or break DNS.",
+    consequence: "Downloads will fail with 'Could not resolve host'. Bootstrap stage 2 (rootfs download) and every `linuxify add` will fail.",
+    fix: 'Check your network connection. If on a corporate network, ask IT about DNS restrictions. Try a different network (mobile data vs Wi-Fi).',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

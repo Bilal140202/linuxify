@@ -43,6 +43,12 @@ export const runtimeGitCheck: DoctorCheck = {
   name: 'Git',
   category: 'runtime',
   profile: ['standard', 'deep', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that Git is installed inside the active distro.',
+    why: "Git is needed by many CLIs for repository operations (Aider reads git history, Cline can commit changes). It's installed during bootstrap stage 3 as part of the base packages.",
+    consequence: "CLIs that interact with git repositories won't work properly. Aider won't be able to track file changes.",
+    fix: 'linuxify init',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

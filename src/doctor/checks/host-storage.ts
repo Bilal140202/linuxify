@@ -65,6 +65,12 @@ export const hostStorageCheck: DoctorCheck = {
   name: 'Storage',
   category: 'host',
   profile: ['minimal', 'standard', 'deep', 'pre-flight', 'post-install', 'ci'],
+  explain: {
+    what: 'Verifies that your device has at least 2 GB of free storage space.',
+    why: 'Linuxify needs space for the Ubuntu rootfs (~300 MB), Node.js (~200 MB), Python (~150 MB), and each installed CLI (~50-500 MB). A full bootstrap uses ~1.5 GB; each package adds more.',
+    consequence: "Installs will fail mid-way with 'No space left on device'. A partial install can leave the environment in a broken state that `linuxify repair` may not fully fix.",
+    fix: 'Free up space: run `linuxify gc` to clean caches, remove unused distros, or uninstall apps you no longer need.',
+  },
 
   async run(): Promise<DoctorResult> {
     const start = Date.now();

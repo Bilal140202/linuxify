@@ -83,6 +83,29 @@ export interface DoctorResult {
 }
 
 /**
+ * Explanation metadata for a doctor check — the "why this matters" text shown
+ * by `linuxify doctor --explain`. Each check provides this as a static field
+ * so it can be displayed without running the check.
+ *
+ * The explanation is written for a new user who doesn't know what PATH is,
+ * what proot does, or why `process.platform` matters. It answers:
+ *   1. What does this check verify?
+ *   2. Why does it matter for running Linux CLIs on Android?
+ *   3. What happens if it's broken? (concrete consequence)
+ *   4. What's the recommended fix?
+ */
+export interface DoctorExplanation {
+  /** What this check verifies (1-2 sentences). */
+  what: string;
+  /** Why it matters for running Linux CLIs on Android (2-3 sentences). */
+  why: string;
+  /** Concrete consequence if broken (1 sentence, e.g. "Commands like `cline` won't be found"). */
+  consequence: string;
+  /** Recommended fix command (matches `DoctorResult.fixCommand` usually). */
+  fix: string;
+}
+
+/**
  * A single doctor check. Checks are independent functions with a stable id,
  * grouped into profiles (see `profiles.ts`) and scheduled into waves by
  * category.
@@ -108,6 +131,12 @@ export interface DoctorCheck {
    *   the engine if the check returns 0 or omits it.
    */
   run(ctx: DoctorContext): Promise<DoctorResult>;
+  /**
+   * Static explanation shown by `linuxify doctor --explain`. Provides the
+   * "why this matters" context for new users. Optional but strongly
+   * recommended for every check.
+   */
+  explain?: DoctorExplanation;
 }
 
 /**

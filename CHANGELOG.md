@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (v0.1.0-alpha.4)
+- **CRITICAL: `repair --yes` no longer crashes Termux.** The old code used
+  `child_process.exec()` to run fix commands, which creates a shell with piped
+  stdio. When `linuxify init` (a fix command) spawned proot with
+  `stdio: 'inherit'`, it hijacked the parent terminal's stdio, causing Termux
+  to close when the child exited. Fixed: now uses `spawn()` with
+  `stdio: 'inherit'` directly, giving child processes proper terminal access
+  without hijacking the parent.
+- **CRITICAL: `repair` now has a real interactive prompt.** The old code
+  printed "Proceed with repair? (y/N)" as plain text via `out.info()` then
+  immediately returned — it never actually waited for input. When the user
+  typed `y`, Termux interpreted it as a new command (`y: command not found`).
+  Fixed: new `src/utils/prompt.ts` module uses Node's `readline` to create a
+  real prompt that waits for Enter. In non-interactive mode (piped stdin, CI),
+  it returns the default (no) immediately.
+- **Re-diagnose-after-each-phase.** Repair now re-runs doctor after each
+  phase and skips downstream phases that are already fixed. If `linuxify init`
+  fixes PATH as a side effect, `linuxify repair paths` is skipped. This is
+  the "smarter repair graph" the user described — fix root cause first, then
+  re-evaluate before applying secondary fixes.
+- **Repair session logging.** Every repair session is now logged to
+  `~/.linuxify/logs/repair-<timestamp>.log` with the plan, each step's exit
+  code, and the final doctor result. If a repair crashes, the user can
+  retrieve the log instead of relying on terminal capture.
+
+### Added (v0.1.0-alpha.4)
+- **`src/utils/prompt.ts`** — readline-based `confirm()` and `prompt()`
+  utilities with TTY detection. Non-interactive environments get the default
+  value immediately; interactive terminals get a real prompt that waits.
+- **`docs/testing-guide.md`** — deep-dive baby-steps testing guide with 6
+  phases, 20+ steps, and a printable checklist. Each step has expected
+  output and troubleshooting instructions.
+
 ### Added (v0.1.0-alpha.3)
 - **`linuxify doctor --explain`** — for each failing check, shows a detailed
   "why this matters" explanation: What this checks, Why it matters, If not

@@ -1,0 +1,86 @@
+name: cline
+version: 1.2.0
+description: "AI coding agent that runs in your terminal — Cline can use your terminal, edit files, and run commands."
+homepage: https://github.com/cline/cline
+license: MIT
+maintainer: "Linuxify Contributors"
+tags: [ai, coding-agent, terminal, claude]
+category: ai
+runtime: node
+runtime_min_version: "20"
+package: cline
+launcher: cline
+package_manager: npm
+
+install:
+  - npm install -g cline
+
+patches:
+  - id: fix-platform-check
+    description: "Make Cline treat Android (proot) as Linux"
+    file: "node_modules/cline/dist/platform.js"
+    type: regex
+    find: "process\\.platform === ['\"]linux['\"]"
+    replace: "['linux','android'].includes(process.platform)"
+    verify: "node -e \"require('cline')\""
+    rollback: true
+    patch_id: cline-001
+  - id: fix-arch-check
+    description: "Accept arm64 in addition to x64"
+    file: "node_modules/cline/dist/arch.js"
+    type: regex
+    find: "process\\.arch === ['\"]x64['\"]"
+    replace: "['x64','arm64'].includes(process.arch)"
+    verify: "node -e \"require('cline')\""
+    rollback: true
+    patch_id: cline-002
+
+env:
+  CLINE_PLATFORM: linux
+  FORCE_COLOR: "1"
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node-20, node-22, node-24]
+  known_issues: []
+  not_supported: [alpine]
+
+doctor:
+  - id: cline.binary
+    name: "Cline binary executes"
+    command: "cline --version"
+    expect: 0
+    fix_command: "linuxify patch cline"
+    severity: fail
+
+repair:
+  - when: cline.binary
+    strategy: reinstall
+    description: "Cline binary is broken or missing platform patches — reinstall and re-apply patches"
+    risk: moderate
+    steps:
+      - linuxify remove cline
+      - linuxify add cline
+    fixes: "Reinstalls Cline with fresh patches applied"
+    requires_network: true
+  - when: compat.platform
+    strategy: patch-platform
+    description: "Re-apply the platform-detection patch (Cline thinks it's on Android, not Linux)"
+    risk: safe
+    steps:
+      - linuxify patch cline
+    fixes: "Cline will treat Android-proot as Linux"
+    requires_network: false
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Cline is the primary AI coding agent Linuxify targets.
+  Requires an Anthropic API key set as ANTHROPIC_API_KEY env var.

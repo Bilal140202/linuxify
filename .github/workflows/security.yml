@@ -1,0 +1,46 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6 AM UTC
+  pull_request:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm audit --audit-level=moderate
+        continue-on-error: ${{ github.event_name == 'schedule' }}
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript-typescript']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'

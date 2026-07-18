@@ -1,0 +1,134 @@
+name: Clean Clone Test
+
+# Verifies that a completely fresh clone → install → build → test → pack works.
+# This is the "works on a clean machine" gate the user requested before npm publish.
+# Runs on every PR and on main pushes.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  clean-clone:
+    name: Clean Clone → Install → Build → Test → Pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Verify package-lock.json does not exist (true clean install)
+        run: |
+          if [ -f package-lock.json ]; then
+            echo " package-lock.json exists — removing for true clean install test"
+            rm package-lock.json
+          fi
+          rm -rf node_modules
+
+      - name: npm install (must succeed without --legacy-peer-deps)
+        run: npm install --no-audit --no-fund
+        # If this fails, the PR breaks the clean-install contract.
+
+      - name: npm run typecheck
+        run: npm run typecheck
+
+      - name: npm run lint
+        run: npm run lint
+        continue-on-error: true # Lint is non-blocking for now
+
+      - name: npm run test
+        run: npm test
+        env:
+          LINUXIFY_TEST_MODE: '1'
+          LINUXIFY_TELEMETRY: '0'
+          NO_COLOR: '1'
+
+      - name: npm run build
+        run: npm run build
+
+      - name: Verify CLI binary works
+        run: |
+          node dist/cli/index.js --version
+          node dist/cli/index.js --help > /dev/null
+          node dist/cli/index.js doctor --json | head -5
+          node dist/cli/index.js report --fingerprint
+          node dist/cli/index.js fix --list-rules
+
+      - name: npm pack (verify package is publishable)
+        run: |
+          npm pack --dry-run > /tmp/pack-output.txt 2>&1
+          cat /tmp/pack-output.txt
+          # Verify the tarball contains the expected files.
+          if ! grep -q 'dist/cli/index.js' /tmp/pack-output.txt; then
+            echo "✖ dist/cli/index.js missing from package"
+            exit 1
+          fi
+          if ! grep -q 'README.md' /tmp/pack-output.txt; then
+            echo "✖ README.md missing from package"
+            exit 1
+          fi
+          if ! grep -q 'LICENSE' /tmp/pack-output.txt; then
+            echo "✖ LICENSE missing from package"
+            exit 1
+          fi
+          echo "✓ Package contains all required files"
+
+      - name: Verify no PII in report
+        run: |
+          # The report must not leak home directory paths or env values.
+          REPORT=$(node dist/cli/index.js report --json)
+          if echo "$REPORT" | grep -q '/home/runner'; then
+            echo "✖ Report leaks CI runner home path"
+            exit 1
+          fi
+          if echo "$REPORT" | grep -q 'API_KEY'; then
+            echo "✖ Report leaks API key"
+            exit 1
+          fi
+          echo "✓ Report is PII-free"
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-clone-dist
+          path: dist/
+          retention-days: 3
+
+      - name: Upload pack tarball
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linuxify-tarball
+          path: '*.tgz'
+          retention-days: 3
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Clean Clone Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **All checks passed** — this PR is safe to merge." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- npm install: ✅ (no --legacy-peer-deps needed)" >> $GITHUB_STEP_SUMMARY
+            echo "- typecheck: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- tests: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- build: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- CLI works: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- npm pack: ✅ (publishable)" >> $GITHUB_STEP_SUMMARY
+            echo "- report is PII-free: ✅" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Some checks failed** — see logs above." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This PR cannot be merged until the clean-clone test passes." >> $GITHUB_STEP_SUMMARY
+          fi

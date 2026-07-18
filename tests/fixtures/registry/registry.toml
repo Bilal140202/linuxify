@@ -1,0 +1,20 @@
+# registry.toml — mock registry metadata for tests.
+# Mirrors the layout documented in docs/09-registry/registry-format.md §3.
+
+schema_version = 1
+registry_name = "linuxify"
+registry_description = "Mock Linuxify package registry for unit tests"
+registry_url = "https://github.com/linuxify/registry"
+default_branch = "main"
+
+[[maintainers]]
+name = "ravi"
+email = "ravi@linuxify.dev"
+github = "ravi-linuxify"
+role = "lead"
+
+[[maintainers]]
+name = "ana"
+email = "ana@linuxify.dev"
+github = "ana-cs"
+role = "maintainer"

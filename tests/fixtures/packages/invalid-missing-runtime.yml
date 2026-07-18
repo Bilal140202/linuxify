@@ -1,0 +1,23 @@
+# packages/invalid-missing-runtime.yml — missing the required `runtime` field.
+name: noruntime
+version: 1.0.0
+description: "Missing runtime field"
+homepage: https://example.com/noruntime
+license: MIT
+package: noruntime
+launcher: noruntime
+install:
+  - echo install
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: []
+  tested_runtimes: []
+  known_issues: []
+  not_supported: []
+permissions:
+  network: false
+  filesystem:
+    binds: []
+  services:
+    start: []
+  setuid: false

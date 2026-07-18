@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run CLI",
+      "type": "node",
+      "request": "launch",
+      "runtimeArgs": ["--loader", "ts-node/esm", "src/cli/index.ts"],
+      "console": "integratedTerminal",
+      "env": {
+        "LINUXIFY_LOG_LEVEL": "debug"
+      }
+    },
+    {
+      "name": "Current Vitest File",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/vitest",
+      "runtimeArgs": ["run", "${file}"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

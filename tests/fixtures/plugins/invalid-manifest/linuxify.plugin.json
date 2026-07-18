@@ -1,0 +1,6 @@
+{
+  "name": "invalid-plugin",
+  "version": "not-a-semver",
+  "linuxify": ">=0.0.1",
+  "hooks": {}
+}

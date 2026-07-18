@@ -1,0 +1,35 @@
+# packages/aider.yml — mock package for registry tests.
+# A Python-runtime AI coding agent so the fixture set exercises multiple
+# runtimes (node, python) for search filtering.
+name: aider
+version: 0.42.0
+description: "AI pair programming in the terminal"
+homepage: https://github.com/paul-gauthier/aider
+license: Apache-2.0
+maintainer: ana@linuxify.dev
+tags: [ai-coding, python, terminal]
+category: ai
+runtime: python
+runtime_min_version: "3.10"
+package: aider-chat
+launcher: aider
+package_manager: pip
+install:
+  - pip install aider-chat==0.42.0
+uninstall:
+  - pip uninstall -y aider-chat
+env:
+  AIDER_NO_AUTO_COMMITS: "1"
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [python]
+  known_issues: []
+  not_supported: []
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard:/workspace]
+  services:
+    start: []
+  setuid: false

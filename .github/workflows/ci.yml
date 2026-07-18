@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main, release/*]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs on the same PR/branch when new commits land.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # Fast feedback: lint + typecheck + unit tests on every PR.
+  # Target: ≤5 min total.
+  # ─────────────────────────────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]  # FIX C7: Test multiple Node LTS versions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+
+  unit-tests:
+    name: Unit Tests (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]  # FIX C7: Matrix testing across Node versions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-node-${{ matrix.node-version }}
+          path: coverage/
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Security audit
+  # ─────────────────────────────────────────────────────────────────────
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm audit --audit-level=moderate
+      - run: npm run lint:security  # If you have security linting rules
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Build verification
+  # ─────────────────────────────────────────────────────────────────────
+  build:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm run typecheck

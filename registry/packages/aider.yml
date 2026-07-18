@@ -1,0 +1,67 @@
+name: aider
+version: 0.65.0
+description: "AI pair programming in your terminal — Aider lets you pair-program with LLMs to edit code in your local git repo."
+homepage: https://github.com/Aider-AI/aider
+license: Apache-2.0
+maintainer: "Linuxify Contributors"
+tags: [ai, coding-agent, git, pair-programming]
+category: ai
+runtime: python
+runtime_min_version: "3.10"
+package: aider-chat
+launcher: aider
+package_manager: pip
+
+install:
+  - pip install aider-chat
+
+patches:
+  - id: fix-platform-check
+    description: "Patch aider's platform detection to treat Android as Linux"
+    file: "lib/python3.12/site-packages/aider/platform.py"
+    type: sed
+    find: "s/sys\\.platform.*android/android/g"
+    replace: ""
+    verify: "aider --version"
+    rollback: true
+    patch_id: aider-001
+
+env:
+  AIDER_PLATFORM: linux
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [python-3.11, python-3.12]
+  known_issues:
+    - id: aider-001
+      severity: med
+      description: "Some Python C extensions may need rebuild on arm64"
+      workaround: "Run `linuxify repair` if aider fails to import"
+  not_supported: [alpine]
+
+doctor:
+  - id: aider.binary
+    name: "Aider binary executes"
+    command: "aider --version"
+    expect: 0
+    fix_command: "linuxify patch aider"
+    severity: fail
+  - id: aider.git
+    name: "Git is available"
+    command: "git --version"
+    expect: 0
+    fix_command: "linuxify init"
+    severity: warn
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Aider requires an OpenAI or Anthropic API key.
+  Works best inside a git repository (cd into your project before running).

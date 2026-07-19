@@ -106,16 +106,29 @@ export const builtinRules: DiagnosisRule[] = [
     name: 'Bootstrap completion check',
     async diagnose(result: DoctorResult, envReport?: Report): Promise<Diagnosis | null> {
       if (result.status !== 'fail') return null;
-      const stagesDone = envReport?.install.bootstrapStagesDone ?? [];
-      const stagesFailed = envReport?.install.bootstrapStagesFailed ?? [];
-      const nextStage = stagesDone.length; // 0-indexed → next = length
+
+      // Read stage info from the doctor result's detail field (populated by
+      // the bootstrap.completed check from marker files on disk).
+      // This ensures fix and doctor report the SAME stage count.
+      const detail = result.detail as {
+        done?: number[];
+        failed?: number[];
+        missing?: number[];
+        nextStage?: number;
+        nextStageName?: string;
+      } | undefined;
+
+      const stagesDone = detail?.done ?? envReport?.install.bootstrapStagesDone ?? [];
+      const stagesFailed = detail?.failed ?? envReport?.install.bootstrapStagesFailed ?? [];
+      const nextStage = detail?.nextStage ?? stagesDone.length;
+      const nextStageName = detail?.nextStageName ?? `stage ${nextStage}`;
 
       return {
         id: 'bootstrap.incomplete',
         title: `Bootstrap is incomplete (${stagesDone.length}/9 stages)`,
-        what: `Linuxify's bootstrap process didn't finish. Stage ${nextStage} is the next one that needs to run. Without a complete bootstrap, no packages can be installed or run.`,
+        what: `Linuxify's bootstrap process didn't finish. Stage ${nextStage} (${nextStageName}) is the next one that needs to run. Without a complete bootstrap, no packages can be installed or run.`,
         why: stagesFailed.length > 0
-          ? `Stage ${stagesFailed[0]} previously failed. The most common causes are network errors during rootfs download, out-of-storage, or a Termux/proot version mismatch.`
+          ? `Stage ${stagesFailed[0]} previously failed. The most common causes are: broken proot-distro (Python upgrade), network errors during rootfs download, out-of-storage, or a Termux/proot version mismatch. Check if proot-distro is working first.`
           : 'Bootstrap was started but never finished — likely the process was interrupted (closed Termux, phone rebooted, etc.).',
         evidence: [
           {
@@ -123,16 +136,16 @@ export const builtinRules: DiagnosisRule[] = [
             checkName: result.name,
             status: result.status,
             message: result.message,
-            interpretation: `${stagesDone.length}/9 stages complete, next: stage ${nextStage}`,
+            interpretation: `${stagesDone.length}/9 stages complete, next: stage ${nextStage} (${nextStageName})`,
           },
         ],
         repair: plan({
           summary: `Resume bootstrap from stage ${nextStage}`,
-          description: `Linuxify's bootstrap is idempotent — re-running \`linuxify init\` picks up where it left off. If a specific stage keeps failing, use \`linuxify init --from-stage ${nextStage}\` to retry just that stage.`,
+          description: `Linuxify's bootstrap is idempotent — re-running \`linuxify init\` picks up where it left off. If a specific stage keeps failing, check if proot-distro is working (\`proot-distro list\`) before retrying.`,
           steps: [
             {
               description: 'Resume bootstrap',
-              command: `linuxify init --from-stage ${nextStage}`,
+              command: `linuxify init`,
               modifiesState: true,
               estimatedSeconds: 180,
             },
@@ -493,6 +506,132 @@ export const builtinRules: DiagnosisRule[] = [
         alternatives: [],
         docsUrl: 'https://github.com/Bilal140202/linuxify/blob/main/docs/12-testing/performance-budget.md',
         confidence: 0.85,
+      };
+    },
+  },
+
+  // ── path.proot-distro-usable ───────────────────────────────────────
+  // This is the ROOT CAUSE rule. When proot-distro is broken (e.g., bad
+  // interpreter after Python upgrade), this rule identifies it as the
+  // root cause and explains that bootstrap.incomplete and distro.installed
+  // are downstream symptoms.
+  {
+    checkId: 'path.proot-distro-usable',
+    name: 'proot-distro usability check (root cause)',
+    async diagnose(result: DoctorResult): Promise<Diagnosis | null> {
+      if (result.status !== 'fail') return null;
+
+      // Check if the detail has a diagnosis from the diagnostics engine.
+      const detail = result.detail as { diagnosis?: { id?: string; title?: string; what?: string; why?: string; repair?: string; confidence?: number } } | undefined;
+      const diag = detail?.diagnosis;
+
+      if (diag) {
+        // We have a specific diagnosis from the diagnostics engine.
+        return {
+          id: diag.id ?? 'path.proot-distro-usable.broken',
+          title: diag.title ?? 'proot-distro is broken',
+          what: diag.what ?? result.message,
+          why: (diag.why ?? 'proot-distro is installed but cannot execute. ') +
+            'This is the ROOT CAUSE of bootstrap failures and missing distro errors. ' +
+            'Once proot-distro is repaired, bootstrap can proceed and the distro will be installed.',
+          evidence: [
+            {
+              checkId: 'path.proot-distro-usable',
+              checkName: result.name,
+              status: result.status,
+              message: result.message,
+              interpretation: 'ROOT CAUSE — fixing this will resolve bootstrap.completed and distro.installed',
+            },
+          ],
+          repair: plan({
+            summary: diag.repair ?? 'pkg reinstall proot-distro',
+            description: 'Reinstalling proot-distro updates its shebang to point to the current Python interpreter. This is a safe operation — no Linuxify data, Ubuntu installations, or user files will be affected. Only the proot-distro Termux package is reinstalled.',
+            steps: [
+              {
+                description: diag.repair ?? 'pkg reinstall proot-distro',
+                command: diag.repair ?? 'pkg reinstall proot-distro',
+                modifiesState: true,
+                estimatedSeconds: 30,
+              },
+              {
+                description: 'Verify proot-distro works',
+                command: 'proot-distro list',
+                modifiesState: false,
+                estimatedSeconds: 5,
+              },
+              {
+                description: 'Resume bootstrap now that proot-distro is fixed',
+                command: 'linuxify init',
+                modifiesState: true,
+                estimatedSeconds: 300,
+              },
+            ],
+            risk: 'safe',
+            fixes: [
+              'proot-distro will be usable again',
+              'Bootstrap can proceed past Stage 1',
+              'Distro installation will work',
+              'All downstream failures (bootstrap.incomplete, distro.installed) will resolve',
+            ],
+            doesNotFix: ['Does not affect your existing Ubuntu/Debian installations (if any)'],
+            requiresNetwork: true,
+          }),
+          alternatives: [],
+          docsUrl: 'https://github.com/Bilal140202/linuxify/blob/main/docs/22-operations/troubleshooting.md',
+          confidence: diag.confidence ?? 0.95,
+        };
+      }
+
+      // No specific diagnosis — generic proot-distro failure.
+      return {
+        id: 'path.proot-distro-usable.broken',
+        title: 'proot-distro is installed but cannot execute',
+        what: 'proot-distro is on your PATH but `proot-distro list` fails. This is the ROOT CAUSE of bootstrap failures — without a working proot-distro, Linuxify cannot install or enter any Linux distro.',
+        why: 'The most common cause is a Python upgrade in Termux that breaks the proot-distro script\'s shebang. The script still points to the old Python version (e.g., python3.13) but only the new one (e.g., python3.14) exists. Reinstalling proot-distro fixes the shebang.',
+        evidence: [
+          {
+            checkId: 'path.proot-distro-usable',
+            checkName: result.name,
+            status: result.status,
+            message: result.message,
+            interpretation: 'ROOT CAUSE — fixing this will resolve bootstrap.completed and distro.installed',
+          },
+        ],
+        repair: plan({
+          summary: 'Reinstall proot-distro',
+          description: 'Reinstalling proot-distro updates its shebang to the current Python. Safe — no data loss.',
+          steps: [
+            {
+              description: 'Reinstall proot-distro',
+              command: 'pkg reinstall proot-distro',
+              modifiesState: true,
+              estimatedSeconds: 30,
+            },
+            {
+              description: 'Verify proot-distro works',
+              command: 'proot-distro list',
+              modifiesState: false,
+              estimatedSeconds: 5,
+            },
+            {
+              description: 'Resume bootstrap',
+              command: 'linuxify init',
+              modifiesState: true,
+              estimatedSeconds: 300,
+            },
+          ],
+          risk: 'safe',
+          fixes: [
+            'proot-distro will be usable',
+            'Bootstrap can proceed',
+            'All downstream failures will resolve',
+          ],
+          doesNotFix: [],
+          requiresNetwork: true,
+        }),
+        alternatives: [],
+        docsUrl: 'https://github.com/Bilal140202/linuxify/blob/main/docs/22-operations/troubleshooting.md',
+        confidence: 0.9,
       };
     },
   },

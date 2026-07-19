@@ -94,20 +94,21 @@ function defaultConfirm(opts: RepairOptions): (id: string, cmd: string) => Promi
  * PATH and network failures are usually independent.
  */
 const CHECK_PRIORITY: Record<string, number> = {
-  'bootstrap.completed': 0, // root cause — fix first
-  'host.termux': 1, // environment prerequisite
-  'host.android': 1,
-  'host.arch': 1,
-  'host.storage': 1,
-  'host.memory': 1,
-  'distro.installed': 2, // depends on bootstrap
-  'path.proot': 3, // depends on host deps (bootstrap stage 1)
-  'runtime.node': 3, // depends on bootstrap stage 4
-  'runtime.python': 3,
-  'runtime.git': 3,
-  'path.linuxify_bin': 4, // depends on bootstrap stage 6
-  'path.termux_prefix': 4,
-  'compat.platform': 5, // depends on distro + runtimes
+  'path.proot-distro-usable': 0, // ROOT CAUSE — broken proot-distro breaks everything
+  'bootstrap.completed': 1, // depends on proot-distro being usable
+  'host.termux': 2, // environment prerequisite
+  'host.android': 2,
+  'host.arch': 2,
+  'host.storage': 2,
+  'host.memory': 2,
+  'distro.installed': 3, // depends on bootstrap
+  'path.proot': 4, // depends on host deps (bootstrap stage 1)
+  'runtime.node': 4, // depends on bootstrap stage 4
+  'runtime.python': 4,
+  'runtime.git': 4,
+  'path.linuxify_bin': 5, // depends on bootstrap stage 6
+  'path.termux_prefix': 5,
+  'compat.platform': 6, // depends on distro + runtimes
   'network.dns': 9, // independent
   'network.github': 9,
   'network.npm': 9,
@@ -175,11 +176,14 @@ function skipDependentFixes(
   remaining: DoctorResult[],
   currentIndex: number,
 ): DoctorResult[] {
+  // If proot-distro is broken, EVERYTHING downstream is dependent.
   // If bootstrap failed, everything downstream is dependent.
   // If a host check failed, distro/runtime/path checks are dependent.
   // Otherwise, just continue — most fixes are independent.
   const isRootCause =
-    failedCheckId === 'bootstrap.completed' || failedCheckId.startsWith('host.');
+    failedCheckId === 'path.proot-distro-usable' ||
+    failedCheckId === 'bootstrap.completed' ||
+    failedCheckId.startsWith('host.');
   if (!isRootCause) {
     return [];
   }

@@ -188,20 +188,51 @@ async function checkBinaryOnPath(name: string): Promise<{ found: boolean; path: 
 }
 
 /**
- * List proot-distro containers by parsing `proot-distro list` output.
+ * List proot-distro containers by parsing `proot-distro list` output AND
+ * checking the filesystem directly.
+ *
+ * We use both methods because:
+ * 1. `proot-distro list` is the official way but its output format may vary
+ * 2. The filesystem check (`$PREFIX/var/lib/proot-distro/installed-rootfs/`)
+ *    is the ground truth — directories there ARE installed containers
  */
 async function listProotDistroContainers(warnings: string[]): Promise<string[]> {
+  const distros = new Set<string>();
+
+  // Method 1: Parse `proot-distro list` output.
   try {
     const r = await exec('proot-distro', ['list'], { timeoutMs: 10000 });
-    if (r.exitCode !== 0) {
-      warnings.push('proot-distro list failed — cannot discover containers');
-      return [];
+    if (r.exitCode === 0) {
+      const parsed = parseDistroList(r.stdout);
+      for (const d of parsed) distros.add(d);
+      if (parsed.length === 0) {
+        logger.debug({ stdout: r.stdout.slice(0, 200) }, 'discovery: proot-distro list returned no parsed distros');
+      }
+    } else {
+      warnings.push('proot-distro list failed — falling back to filesystem check');
     }
-    return parseDistroList(r.stdout);
   } catch (err) {
     warnings.push(`proot-distro list threw: ${(err as Error).message}`);
-    return [];
   }
+
+  // Method 2: Check the filesystem directly.
+  try {
+    const { readdir } = await import('node:fs/promises');
+    const rootfsDir = join(getTermuxPrefix(), 'var', 'lib', 'proot-distro', 'installed-rootfs');
+    logger.debug({ rootfsDir }, 'discovery: checking rootfs directory');
+    const entries = await readdir(rootfsDir);
+    for (const name of entries) {
+      // Each subdirectory is an installed container
+      distros.add(name);
+    }
+    if (entries.length > 0) {
+      logger.info({ found: entries }, 'discovery: found containers via filesystem');
+    }
+  } catch {
+    // Directory may not exist if no containers are installed — fine.
+  }
+
+  return Array.from(distros);
 }
 
 /**

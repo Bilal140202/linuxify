@@ -103,17 +103,39 @@ Want a tool that isn't listed? Open a `package-request` issue or contribute a `p
 
 > 🛑 **Prerequisite:** Linuxify requires **Termux from F-Droid** — *not* the Google Play Store version. The Play Store build is deprecated by Termux upstream and will fail in confusing ways. Install Termux from [f-droid.org/packages/com.termux/](https://f-droid.org/packages/com.termux/) first.
 
-```bash
-# Inside Termux, from a clean shell:
-pkg update && pkg upgrade -y
-pkg install linuxify        # once the package is published; until then:
-# curl -fsSL https://linuxify.dev/install.sh | bash
+### Method 1: Direct install from GitHub (Recommended)
 
-linuxify init               # bootstrap Ubuntu + runtimes + PATH (idempotent)
-linuxify add cline          # install + patch + launcher
+```bash
+# Inside Termux — one-line installer with prerequisite checks:
+curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/termux-build/termux-install.sh | bash
+
+# Or manually from source:
+git clone --depth 1 https://github.com/Bilal140202/linuxify.git
+cd linuxify
+npm install
+npm run build
+npm link
 ```
 
-Detailed install paths, offline installs, and self-hosted mirrors are documented in [bootstrap design](docs/05-bootstrap/bootstrap-design.md). Architecture-specific notes (`aarch64`, `armv7l`, `x86_64` Chromebooks) are in [ARM considerations](docs/23-mobile/arm-considerations.md).
+### Method 2: From npm (once published)
+
+```bash
+npm install -g linuxify
+```
+
+### First run
+
+```bash
+linuxify discover           # scan for existing proot-distro environments
+linuxify init               # bootstrap Ubuntu + runtimes + PATH (idempotent)
+# — OR —
+linuxify adopt ubuntu       # adopt an existing proot-distro Ubuntu (no reinstall!)
+
+linuxify add cline          # install + patch + launcher
+linuxify doctor             # verify everything is healthy
+```
+
+See [INSTALL.md](INSTALL.md) for detailed installation options. Architecture-specific notes (`aarch64`, `armv7l`, `x86_64` Chromebooks) are in [ARM considerations](docs/23-mobile/arm-considerations.md).
 
 ## Project structure
 

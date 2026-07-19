@@ -33,6 +33,7 @@ import { networkGithubCheck } from './network-github.js';
 import { networkNpmCheck } from './network-npm.js';
 import { pathLinuxifyBinCheck } from './path-linuxify-bin.js';
 import { pathProotCheck } from './path-proot.js';
+import { pathProotDistroUsableCheck } from './path-proot-distro-usable.js';
 import { pathTermuxPrefixCheck } from './path-termux-prefix.js';
 import { runtimeGitCheck } from './runtime-git.js';
 import { runtimeNodeCheck } from './runtime-node.js';
@@ -66,6 +67,7 @@ export const ALL_CHECKS: DoctorCheck[] = [
   pathLinuxifyBinCheck,
   pathTermuxPrefixCheck,
   pathProotCheck,
+  pathProotDistroUsableCheck,
   // compat
   compatPlatformCheck,
   // network

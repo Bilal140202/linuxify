@@ -214,3 +214,13 @@ export {
   type Plugin,
   type LinuxifyContext,
 } from './plugins/index.js';
+
+// Diagnostics.
+export {
+  diagnoseError,
+  formatDiagnosis,
+  builtinPatterns,
+  type Diagnosis,
+  type DiagnosticContext,
+  type StderrPattern,
+} from './diagnostics/index.js';

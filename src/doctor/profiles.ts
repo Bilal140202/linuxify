@@ -55,6 +55,7 @@ export const PROFILE_CHECKS: Record<DoctorProfile, string[]> = {
     'path.linuxify_bin',
     'path.termux_prefix',
     'path.proot',
+    'path.proot-distro-usable',
     'compat.platform',
   ],
 
@@ -78,6 +79,7 @@ export const PROFILE_CHECKS: Record<DoctorProfile, string[]> = {
     'path.linuxify_bin',
     'path.termux_prefix',
     'path.proot',
+    'path.proot-distro-usable',
     'compat.platform',
     'network.dns',
     'network.github',
@@ -108,6 +110,7 @@ export const PROFILE_CHECKS: Record<DoctorProfile, string[]> = {
     'path.linuxify_bin',
     'path.termux_prefix',
     'path.proot',
+    'path.proot-distro-usable',
     'compat.platform',
   ],
 
@@ -131,6 +134,7 @@ export const PROFILE_CHECKS: Record<DoctorProfile, string[]> = {
     'path.linuxify_bin',
     'path.termux_prefix',
     'path.proot',
+    'path.proot-distro-usable',
     'compat.platform',
     'network.dns',
     'network.github',

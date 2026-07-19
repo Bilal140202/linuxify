@@ -105,12 +105,49 @@ export async function stage1HostDeps(_ctx: BootstrapContext): Promise<StageResul
     // - `proot-distro list` IS the canonical "is it working?" check —
     //   it prints installed distros and exits 0 on success
     //
-    // This fixes the alpha-test bug where Stage 1 reported "proot-distro
-    // not executable after install" even though proot-distro was installed,
-    // on PATH, and fully functional.
+    // If `proot-distro list` fails, we run the diagnostics engine to produce
+    // a specific diagnosis (e.g., "bad interpreter after Python upgrade")
+    // instead of the generic "not usable" message. This is the "AI mechanic"
+    // the user asked for: understand what's wrong, explain why, and offer
+    // a targeted repair.
     logger.info('stage 1: verifying proot-distro via `proot-distro list`');
     const verifyResult = await exec('proot-distro', ['list'], { timeoutMs: 10000 });
     if (verifyResult.exitCode !== 0) {
+      // Run diagnostics to get a specific diagnosis.
+      const { diagnoseError, formatDiagnosis } = await import('../../diagnostics/index.js');
+      const diagnosis = diagnoseError({
+        command: 'proot-distro list',
+        exitCode: verifyResult.exitCode,
+        stderr: verifyResult.stderr,
+        stdout: verifyResult.stdout,
+        packageName: 'proot-distro',
+      });
+
+      if (diagnosis) {
+        // We have a specific diagnosis — include it in the error.
+        const formatted = formatDiagnosis(diagnosis);
+        logger.warn({ diagnosisId: diagnosis.id }, 'stage 1: diagnosed proot-distro failure');
+        return fail(
+          start,
+          `proot-distro is broken — ${diagnosis.title}\n\n${formatted}\n\nRun: ${diagnosis.repair}`,
+          {
+            exitCode: verifyResult.exitCode,
+            stderr: tail(verifyResult.stderr, 1000),
+            stdout: tail(verifyResult.stdout, 500),
+            diagnosis: {
+              id: diagnosis.id,
+              title: diagnosis.title,
+              what: diagnosis.what,
+              why: diagnosis.why,
+              repair: diagnosis.repair,
+              confidence: diagnosis.confidence,
+              autoRepairable: diagnosis.autoRepairable,
+            },
+          },
+        );
+      }
+
+      // No specific diagnosis — return the generic failure.
       return fail(start, 'proot-distro not usable after install (proot-distro list failed)', {
         exitCode: verifyResult.exitCode,
         stderr: tail(verifyResult.stderr, 1000),

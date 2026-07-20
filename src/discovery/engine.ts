@@ -188,41 +188,54 @@ async function checkBinaryOnPath(name: string): Promise<{ found: boolean; path: 
 }
 
 /**
- * List proot-distro containers by parsing `proot-distro list` output AND
- * checking the filesystem directly.
+ * List proot-distro containers using `proot-distro list --quiet` (machine-
+ * readable) and the filesystem as fallback.
  *
- * We use both methods because:
- * 1. `proot-distro list` is the official way but its output format may vary
- * 2. The filesystem check (`$PREFIX/var/lib/proot-distro/installed-rootfs/`)
- *    is the ground truth — directories there ARE installed containers
+ * We use `--quiet` (available in proot-distro v5.x) because it prints only
+ * container names, one per line — no headers, no formatting, no localization
+ * issues. This is the officially supported way for scripts to list containers.
+ *
+ * For older proot-distro versions that don't support `--quiet`, we fall back
+ * to the filesystem check (`$PREFIX/var/lib/proot-distro/installed-rootfs/`).
  */
 async function listProotDistroContainers(warnings: string[]): Promise<string[]> {
   const distros = new Set<string>();
 
-  // Method 1: Parse `proot-distro list` output.
+  // Method 1: `proot-distro list --quiet` (machine-readable, one name per line).
   try {
-    const r = await exec('proot-distro', ['list'], { timeoutMs: 10000 });
+    const r = await exec('proot-distro', ['list', '--quiet'], { timeoutMs: 10000 });
     if (r.exitCode === 0) {
-      const parsed = parseDistroList(r.stdout);
-      for (const d of parsed) distros.add(d);
-      if (parsed.length === 0) {
-        logger.debug({ stdout: r.stdout.slice(0, 200) }, 'discovery: proot-distro list returned no parsed distros');
+      const names = r.stdout
+        .trim()
+        .split('\n')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      for (const name of names) {
+        distros.add(name);
+      }
+      if (names.length > 0) {
+        logger.info({ found: names }, 'discovery: found containers via proot-distro list --quiet');
       }
     } else {
-      warnings.push('proot-distro list failed — falling back to filesystem check');
+      // --quiet not supported (old proot-distro) — fall back to parsing + filesystem.
+      logger.debug({ exitCode: r.exitCode }, 'discovery: proot-distro list --quiet failed, trying human output');
+      const r2 = await exec('proot-distro', ['list'], { timeoutMs: 10000 });
+      if (r2.exitCode === 0) {
+        const parsed = parseDistroList(r2.stdout);
+        for (const d of parsed) distros.add(d);
+      }
     }
   } catch (err) {
     warnings.push(`proot-distro list threw: ${(err as Error).message}`);
   }
 
-  // Method 2: Check the filesystem directly.
+  // Method 2: Check the filesystem directly (ground truth).
   try {
     const { readdir } = await import('node:fs/promises');
     const rootfsDir = join(getTermuxPrefix(), 'var', 'lib', 'proot-distro', 'installed-rootfs');
     logger.debug({ rootfsDir }, 'discovery: checking rootfs directory');
     const entries = await readdir(rootfsDir);
     for (const name of entries) {
-      // Each subdirectory is an installed container
       distros.add(name);
     }
     if (entries.length > 0) {

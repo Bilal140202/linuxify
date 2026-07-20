@@ -42,18 +42,22 @@ export async function stage2Rootfs(_ctx: BootstrapContext): Promise<StageResult>
   const start = Date.now();
 
   try {
-    // 1. Check if Ubuntu is already installed.
-    const listResult = await exec('proot-distro', ['list'], { timeoutMs: 10000 });
-    if (listResult.exitCode === 0 && /\bubuntu\b/im.test(listResult.stdout)) {
-      logger.info('stage 2: ubuntu already installed, skipping');
-      return {
-        success: true,
-        durationMs: Date.now() - start,
-        details: {
-          alreadyInstalled: true,
-          prootDistroOutput: listResult.stdout.slice(0, 500),
-        },
-      };
+    // 1. Check if Ubuntu is already installed using --quiet (machine-readable).
+    const listResult = await exec('proot-distro', ['list', '--quiet'], { timeoutMs: 10000 });
+    if (listResult.exitCode === 0) {
+      const containers = listResult.stdout.trim().split('\n').map((s) => s.trim()).filter(Boolean);
+      if (containers.includes('ubuntu')) {
+        logger.info('stage 2: ubuntu already installed, skipping');
+        return {
+          success: true,
+          durationMs: Date.now() - start,
+          details: {
+            alreadyInstalled: true,
+            adopted: true,
+            containers,
+          },
+        };
+      }
     }
 
     // 2. Run `proot-distro install ubuntu` — let proot-distro handle the download.
@@ -65,6 +69,31 @@ export async function stage2Rootfs(_ctx: BootstrapContext): Promise<StageResult>
     );
 
     if (installResult.exitCode !== 0) {
+      // Check if the error is "container already exists" — this is NOT a real
+      // failure; it means Ubuntu is already installed and we should adopt it.
+      const combinedOutput = `${installResult.stderr}\n${installResult.stdout}`;
+      if (/already exists/i.test(combinedOutput)) {
+        logger.info('stage 2: proot-distro reports ubuntu already exists — adopting existing installation');
+        // Verify it's actually there.
+        const verifyResult = await exec('proot-distro', ['list', '--quiet'], { timeoutMs: 10000 });
+        if (verifyResult.exitCode === 0) {
+          const containers = verifyResult.stdout.trim().split('\n').map((s) => s.trim()).filter(Boolean);
+          if (containers.includes('ubuntu')) {
+            logger.info('stage 2: existing ubuntu confirmed, adopting');
+            return {
+              success: true,
+              durationMs: Date.now() - start,
+              details: {
+                alreadyInstalled: true,
+                adopted: true,
+                containers,
+                note: 'Adopted existing Ubuntu container (proot-distro reported "already exists")',
+              },
+            };
+          }
+        }
+      }
+
       // Run diagnostics on the failure.
       const { diagnoseError, formatDiagnosis } = await import('../../diagnostics/index.js');
       const diagnosis = diagnoseError({
@@ -103,12 +132,20 @@ export async function stage2Rootfs(_ctx: BootstrapContext): Promise<StageResult>
       });
     }
 
-    // 3. Verify installation.
-    const verifyResult = await exec('proot-distro', ['list'], { timeoutMs: 10000 });
-    if (verifyResult.exitCode !== 0 || !/\bubuntu\b/im.test(verifyResult.stdout)) {
+    // 3. Verify installation using --quiet.
+    const verifyResult = await exec('proot-distro', ['list', '--quiet'], { timeoutMs: 10000 });
+    if (verifyResult.exitCode !== 0) {
+      return fail(start, 'proot-distro list --quiet failed after install', {
+        stdout: tail(verifyResult.stdout, 500),
+        stderr: tail(verifyResult.stderr, 500),
+      });
+    }
+    const containers = verifyResult.stdout.trim().split('\n').map((s) => s.trim()).filter(Boolean);
+    if (!containers.includes('ubuntu')) {
       return fail(start, 'proot-distro install completed but ubuntu not found in list', {
         stdout: tail(verifyResult.stdout, 500),
         stderr: tail(verifyResult.stderr, 500),
+        containers,
       });
     }
 
@@ -119,8 +156,10 @@ export async function stage2Rootfs(_ctx: BootstrapContext): Promise<StageResult>
       durationMs: Date.now() - start,
       details: {
         alreadyInstalled: false,
+        adopted: false,
         installOutput: tail(installResult.stdout, 500),
         verified: true,
+        containers,
       },
     };
   } catch (e) {

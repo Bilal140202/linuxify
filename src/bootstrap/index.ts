@@ -26,6 +26,7 @@ import { loadConfig } from '../config/index.js';
 import { StateStore } from '../state/index.js';
 import { ensureDir, exists } from '../utils/fs.js';
 import { logger } from '../utils/log.js';
+import { exec } from '../utils/process.js';
 import { getInstalledContainers } from '../utils/distros.js';
 
 import {
@@ -101,6 +102,16 @@ export const stages: readonly Stage[] = [
     name: 'First-Boot',
     description: 'Enter the proot, run apt update + install base packages, set locale/timezone, create linuxify user.',
     run: (ctx) => stage3FirstBoot(ctx),
+    // Self-healing: verify the linuxify user exists inside Ubuntu.
+    // If the user was deleted (e.g., user reset the rootfs), re-run Stage 3.
+    verify: async () => {
+      try {
+        const r = await exec('proot-distro', ['login', 'ubuntu', '--', 'id', 'linuxify'], { timeoutMs: 15000 });
+        return r.exitCode === 0;
+      } catch {
+        return false;
+      }
+    },
   },
   {
     id: 4,

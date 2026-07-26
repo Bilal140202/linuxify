@@ -346,11 +346,12 @@ describe('bootstrap orchestrator', () => {
 
     const result = await bootstrap();
     expect(result.failedStage).toBeNull();
-    // Stage 2 has a verify() that checks proot-distro list --quiet for ubuntu.
-    // In the test environment, proot-distro isn't installed, so verify() returns
-    // false and Stage 2 is re-run (self-healing). Stages without verify() are
-    // trusted and skipped. So completedStages includes 2 (re-run) + 5,6,7,8.
-    expect(result.completedStages).toEqual([2, 5, 6, 7, 8]);
+    // Stages 2 and 3 have verify() methods that check proot-distro state.
+    // In the test environment, proot-distro isn't installed, so verify()
+    // returns false and they are re-run (self-healing). Stages without
+    // verify() are trusted and skipped.
+    // completedStages: 2 (re-run) + 3 (re-run) + 5,6,7,8
+    expect(result.completedStages).toEqual([2, 3, 5, 6, 7, 8]);
 
     expect(stage0Mock).not.toHaveBeenCalled();
     expect(stage4Mock).not.toHaveBeenCalled();

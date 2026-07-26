@@ -18,6 +18,7 @@
 
 import { exec } from '../../utils/process.js';
 import { getActiveDistro } from '../../utils/distros.js';
+import { logger } from '../../utils/log.js';
 import type { DoctorCheck, DoctorContext, DoctorResult } from '../types.js';
 
 /** Hard timeout for the proot login attempt. */
@@ -68,6 +69,28 @@ export const distroBootableCheck: DoctorCheck = {
         ['login', active, '--user', 'linuxify', '--', 'true'],
         { timeoutMs: BOOT_TIMEOUT_MS, env: { TERM: 'dumb' } },
       );
+
+      // If login as 'linuxify' fails because the user doesn't exist,
+      // try auto-creating it (self-healing). This fixes the case where
+      // Ubuntu was installed by proot-distro but Stage 3 (which creates
+      // the linuxify user) was skipped or its effects were lost.
+      if (result.exitCode !== 0 && /no user.*linuxify.*defined/i.test(result.stderr)) {
+        logger.info('distro.bootable: linuxify user missing — auto-creating (self-healing)');
+        const createUserResult = await exec(
+          'proot-distro',
+          ['login', active, '--', 'sh', '-c',
+           "id linuxify >/dev/null 2>&1 || (echo 'linuxify:x:1000:1000:Linuxify:/home/linuxify:/bin/bash' >> /etc/passwd && echo 'linuxify:*:19000:0:99999:7:::' >> /etc/shadow && echo 'linuxify:x:1000:' >> /etc/group && mkdir -p /home/linuxify && chown 1000:1000 /home/linuxify)"],
+          { timeoutMs: BOOT_TIMEOUT_MS, env: { TERM: 'dumb' } },
+        );
+        if (createUserResult.exitCode === 0) {
+          // Retry the bootable check now that the user exists.
+          result = await exec(
+            'proot-distro',
+            ['login', active, '--user', 'linuxify', '--', 'true'],
+            { timeoutMs: BOOT_TIMEOUT_MS, env: { TERM: 'dumb' } },
+          );
+        }
+      }
     } catch (e) {
       return {
         ...base,

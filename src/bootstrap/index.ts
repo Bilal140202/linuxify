@@ -26,7 +26,7 @@ import { loadConfig } from '../config/index.js';
 import { StateStore } from '../state/index.js';
 import { ensureDir, exists } from '../utils/fs.js';
 import { logger } from '../utils/log.js';
-import { exec } from '../utils/process.js';
+import { getInstalledContainers } from '../utils/distros.js';
 
 import {
   clearAllStageMarkers,
@@ -91,14 +91,9 @@ export const stages: readonly Stage[] = [
     // If the rootfs was deleted after Stage 2's marker was written,
     // re-run the stage to reinstall it.
     verify: async () => {
-      try {
-        const r = await exec('proot-distro', ['list', '--quiet'], { timeoutMs: 10000 });
-        if (r.exitCode !== 0) return false;
-        const containers = r.stdout.trim().split('\n').map((s) => s.trim()).filter(Boolean);
-        return containers.includes('ubuntu');
-      } catch {
-        return false;
-      }
+      // Use the shared helper — same source of truth as doctor and discovery.
+      const containers = await getInstalledContainers();
+      return containers.includes('ubuntu');
     },
   },
   {

@@ -6,6 +6,7 @@
 
 import { logger } from '../utils/log.js';
 import { exec, isTermux, isAndroid, getArch, getAndroidVersion, getTermuxPrefix } from '../utils/process.js';
+import { getInstalledContainers } from '../utils/distros.js';
 import { exists } from '../utils/fs.js';
 import { join } from 'node:path';
 
@@ -198,89 +199,17 @@ async function checkBinaryOnPath(name: string): Promise<{ found: boolean; path: 
  * For older proot-distro versions that don't support `--quiet`, we fall back
  * to the filesystem check (`$PREFIX/var/lib/proot-distro/installed-rootfs/`).
  */
-async function listProotDistroContainers(warnings: string[]): Promise<string[]> {
-  const distros = new Set<string>();
-
-  // Method 1: `proot-distro list --quiet` (machine-readable, one name per line).
-  try {
-    const r = await exec('proot-distro', ['list', '--quiet'], { timeoutMs: 10000 });
-    if (r.exitCode === 0) {
-      const names = r.stdout
-        .trim()
-        .split('\n')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      for (const name of names) {
-        distros.add(name);
-      }
-      if (names.length > 0) {
-        logger.info({ found: names }, 'discovery: found containers via proot-distro list --quiet');
-      }
-    } else {
-      // --quiet not supported (old proot-distro) — fall back to parsing + filesystem.
-      logger.debug({ exitCode: r.exitCode }, 'discovery: proot-distro list --quiet failed, trying human output');
-      const r2 = await exec('proot-distro', ['list'], { timeoutMs: 10000 });
-      if (r2.exitCode === 0) {
-        const parsed = parseDistroList(r2.stdout);
-        for (const d of parsed) distros.add(d);
-      }
-    }
-  } catch (err) {
-    warnings.push(`proot-distro list threw: ${(err as Error).message}`);
+async function listProotDistroContainers(_warnings: string[]): Promise<string[]> {
+  // Use the shared helper — same source of truth as doctor, bootstrap, etc.
+  // This prevents the bug where discovery parsed human-readable output
+  // differently than other subsystems.
+  const containers = await getInstalledContainers();
+  if (containers.length === 0) {
+    logger.info('discovery: no proot-distro containers found');
+  } else {
+    logger.info({ found: containers }, 'discovery: found containers');
   }
-
-  // Method 2: Check the filesystem directly (ground truth).
-  try {
-    const { readdir } = await import('node:fs/promises');
-    const rootfsDir = join(getTermuxPrefix(), 'var', 'lib', 'proot-distro', 'installed-rootfs');
-    logger.debug({ rootfsDir }, 'discovery: checking rootfs directory');
-    const entries = await readdir(rootfsDir);
-    for (const name of entries) {
-      distros.add(name);
-    }
-    if (entries.length > 0) {
-      logger.info({ found: entries }, 'discovery: found containers via filesystem');
-    }
-  } catch {
-    // Directory may not exist if no containers are installed — fine.
-  }
-
-  return Array.from(distros);
-}
-
-/**
- * Parse `proot-distro list` output to extract container names.
- *
- * Output looks like:
- * ```
- * Installed containers:
- *
- *   ubuntu
- *   debian
- *
- * Log in with: proot-distro login <name>
- * ```
- */
-function parseDistroList(stdout: string): string[] {
-  const lines = stdout.split('\n');
-  const distros: string[] = [];
-  let inSection = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === '') continue;
-    if (trimmed.toLowerCase().startsWith('installed containers')) {
-      inSection = true;
-      continue;
-    }
-    if (trimmed.toLowerCase().startsWith('log in with')) {
-      inSection = false;
-      continue;
-    }
-    if (inSection && !trimmed.includes(':')) {
-      distros.push(trimmed);
-    }
-  }
-  return distros;
+  return containers;
 }
 
 /**

@@ -3,24 +3,21 @@
  *
  * @module linuxify/doctor/checks/distro-installed
  *
- * Verifies that the active distro (per `state.active_distro`) is installed —
- * i.e. its install marker file exists at
- * `~/.linuxify/distros/<name>/installed` AND it appears in
- * `state.installed_distros`.
+ * Verifies that an active distro is installed and usable. Uses the shared
+ * {@link getActiveDistro} helper — the SAME source of truth that bootstrap,
+ * Stage 2, Stage 7, and discovery use. This prevents the bug where doctor
+ * said "no active distro" even though Ubuntu was installed via proot-distro.
  *
- * On failure with no active distro: suggests `linuxify init` (which installs
- * the default distro as part of bootstrap).
- *
- * On failure with an active distro that's missing: suggests
- * `linuxify distros install <name>` followed by `linuxify use <name>`.
+ * Resolution:
+ * 1. Check if any containers are installed via `proot-distro list --quiet`
+ * 2. If state.json's active_distro matches an installed container → OK
+ * 3. If state.json has no active_distro but Ubuntu is installed → OK (adopt)
+ * 4. If no containers are installed → FAIL with "run linuxify init"
  *
  * @packageDocumentation
  */
 
-import { join } from 'node:path';
-
-import { exists } from '../../utils/fs.js';
-import { getLinuxifyHome } from '../../utils/process.js';
+import { getInstalledContainers, getActiveDistro } from '../../utils/distros.js';
 import type { DoctorCheck, DoctorContext, DoctorResult } from '../types.js';
 
 /**
@@ -46,46 +43,58 @@ export const distroInstalledCheck: DoctorCheck = {
       category: 'distro',
     };
 
-    const active = ctx.state.active_distro;
-    if (!active) {
+    // Use the SHARED helper — same source of truth as bootstrap Stage 2/7.
+    const installed = await getInstalledContainers();
+    const active = await getActiveDistro(ctx.state.active_distro);
+
+    if (installed.length === 0) {
       return {
         ...base,
         status: 'fail',
-        message:
-          'No active distro. Ubuntu is not installed yet. Run: linuxify init',
-        detail: { activeDistro: active, installedDistros: ctx.state.installed_distros.map((d) => d.name) },
-        // `linuxify init` installs the default distro (Ubuntu) as part of
-        // bootstrap stage 2. `linuxify use ubuntu` alone won't work because
-        // `use` doesn't auto-install (it needs `--create`).
+        message: 'No active distro. Ubuntu is not installed yet. Run: linuxify init',
+        detail: {
+          installedContainers: [],
+          stateActiveDistro: ctx.state.active_distro,
+          source: 'proot-distro list --quiet',
+        },
         fixCommand: 'linuxify init',
         fixDocs: 'https://docs.linuxify.dev/05-bootstrap/distro-management',
         durationMs: Date.now() - start,
       };
     }
 
-    const inState = ctx.state.installed_distros.some((d) => d.name === active);
-    const markerPath = join(getLinuxifyHome(), 'distros', active, 'installed');
-    const markerExists = await exists(markerPath);
-
-    if (!inState || !markerExists) {
+    if (!active) {
+      // Containers exist but none is active — shouldn't happen given
+      // getActiveDistro's fallback, but handle it.
       return {
         ...base,
         status: 'fail',
-        message: `Active distro '${active}' is not installed (state: ${inState}, marker: ${markerExists}).`,
-        detail: { activeDistro: active, inState, markerExists, markerPath },
-        // Two-step fix: install the distro, then activate it.
-        fixCommand: `linuxify distros install ${active} && linuxify use ${active}`,
+        message: `Containers found (${installed.join(', ')}) but none is active. Run: linuxify use ubuntu`,
+        detail: {
+          installedContainers: installed,
+          stateActiveDistro: ctx.state.active_distro,
+          source: 'proot-distro list --quiet',
+        },
+        fixCommand: `linuxify use ${installed[0]}`,
         fixDocs: 'https://docs.linuxify.dev/05-bootstrap/distro-management',
         durationMs: Date.now() - start,
       };
     }
 
-    const entry = ctx.state.installed_distros.find((d) => d.name === active);
+    // Active distro found and installed — report success.
     return {
       ...base,
       status: 'ok',
-      message: `Active distro '${active}' (${entry?.version ?? '?'}) installed.`,
-      detail: { activeDistro: active, version: entry?.version, markerPath },
+      message: `Active distro '${active}' is installed.`,
+      detail: {
+        activeDistro: active,
+        installedContainers: installed,
+        stateActiveDistro: ctx.state.active_distro,
+        source: 'proot-distro list --quiet',
+        note: ctx.state.active_distro !== active
+          ? `State.json pointed to '${ctx.state.active_distro || '(none)'}' but '${active}' is actually installed — using reality over cached state.`
+          : undefined,
+      },
       durationMs: Date.now() - start,
     };
   },

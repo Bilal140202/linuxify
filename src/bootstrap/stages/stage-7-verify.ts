@@ -163,18 +163,28 @@ async function runInlineVerification(ctx: BootstrapContext, start: number): Prom
   const failures: string[] = [];
   const details: Record<string, unknown> = {};
 
-  // 1. proot-distro list shows ubuntu.
+  // 1. proot-distro list --quiet shows ubuntu (machine-readable, one name per line).
+  // We use --quiet because the human-readable output format varies across
+  // proot-distro versions and locales. --quiet prints only container names.
   try {
-    const r = await exec('proot-distro', ['list'], { timeoutMs: INLINE_TIMEOUT_MS });
-    if (r.exitCode === 0 && /ubuntu/i.test(r.stdout)) {
-      details.ubuntuListed = true;
+    const r = await exec('proot-distro', ['list', '--quiet'], { timeoutMs: INLINE_TIMEOUT_MS });
+    if (r.exitCode === 0) {
+      const containers = r.stdout.trim().split('\n').map((s) => s.trim()).filter(Boolean);
+      if (containers.includes('ubuntu')) {
+        details.ubuntuListed = true;
+        details.installedContainers = containers;
+      } else {
+        failures.push(`proot-distro list --quiet does not show ubuntu as installed (found: ${containers.join(', ') || 'none'})`);
+        details.ubuntuListed = false;
+        details.installedContainers = containers;
+      }
     } else {
-      failures.push('proot-distro list does not show ubuntu as installed');
+      failures.push(`proot-distro list --quiet failed (exit ${r.exitCode})`);
       details.ubuntuListed = false;
-      details.listStdout = r.stdout.slice(-500);
+      details.listStderr = r.stderr.slice(-500);
     }
   } catch (e) {
-    failures.push(`proot-distro list threw: ${(e as Error).message}`);
+    failures.push(`proot-distro list --quiet threw: ${(e as Error).message}`);
   }
 
   // 2. Linuxify home tree exists.

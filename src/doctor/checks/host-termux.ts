@@ -97,14 +97,19 @@ export const hostTermuxCheck: DoctorCheck = {
     }
 
     let version: string | undefined;
-    try {
-      const r = await exec('dpkg', ['-s', 'com.termux'], { timeoutMs: 3000 });
-      if (r.exitCode === 0) {
-        const m = /Version:\s*([0-9.]+)/.exec(r.stdout);
-        version = m?.[1];
+    // Method 1: TERMUX_VERSION env var (set by Termux since 0.118).
+    version = process.env.TERMUX_VERSION;
+    // Method 2: dpkg -s com.termux (fallback for older Termux).
+    if (!version) {
+      try {
+        const r = await exec('dpkg', ['-s', 'com.termux'], { timeoutMs: 3000 });
+        if (r.exitCode === 0) {
+          const m = /Version:\s*([0-9.]+)/.exec(r.stdout);
+          version = m?.[1];
+        }
+      } catch {
+        /* fall through to warn */
       }
-    } catch {
-      /* fall through to warn */
     }
 
     if (!version) {

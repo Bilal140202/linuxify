@@ -8,13 +8,16 @@
  * exit means proot itself is broken (kernel regression, missing proot
  * binary, corrupted rootfs, etc.).
  *
- * Skipped when no active distro is set or when the distro is not installed
- * (those are surfaced by `distro.installed` instead).
+ * Uses the shared {@link getActiveDistro} helper — the SAME source of truth
+ * that `distro.installed`, bootstrap, and discovery use. This prevents the
+ * bug where `distro.installed` correctly detected Ubuntu but `distro.bootable`
+ * said "No active distro" because it read stale state.json.
  *
  * @packageDocumentation
  */
 
 import { exec } from '../../utils/process.js';
+import { getActiveDistro } from '../../utils/distros.js';
 import type { DoctorCheck, DoctorContext, DoctorResult } from '../types.js';
 
 /** Hard timeout for the proot login attempt. */
@@ -43,24 +46,17 @@ export const distroBootableCheck: DoctorCheck = {
       category: 'distro',
     };
 
-    const active = ctx.state.active_distro;
+    // Use the shared helper — same source of truth as distro.installed.
+    // This fixes the bug where bootable said "No active distro" even though
+    // distro.installed correctly detected Ubuntu.
+    const active = await getActiveDistro(ctx.state.active_distro);
+
     if (!active) {
       return {
         ...base,
         status: 'skip',
         message: 'No active distro; skipping bootable check.',
-        detail: { activeDistro: active },
-        durationMs: Date.now() - start,
-      };
-    }
-
-    const inState = ctx.state.installed_distros.some((d) => d.name === active);
-    if (!inState) {
-      return {
-        ...base,
-        status: 'skip',
-        message: `Active distro '${active}' not installed; skipping bootable check.`,
-        detail: { activeDistro: active },
+        detail: { activeDistro: null, source: 'getActiveDistro' },
         durationMs: Date.now() - start,
       };
     }
@@ -116,8 +112,8 @@ export const distroBootableCheck: DoctorCheck = {
     return {
       ...base,
       status: 'ok',
-      message: `proot login to '${active}' succeeded.`,
-      detail: { activeDistro: active },
+      message: `Ubuntu booted successfully.`,
+      detail: { activeDistro: active, source: 'getActiveDistro' },
       durationMs: Date.now() - start,
     };
   },

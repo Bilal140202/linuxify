@@ -46,6 +46,18 @@ export interface Stage {
    * throw on failure — wrap errors in a `StageResult` instead.
    */
   run(ctx: BootstrapContext): Promise<StageResult>;
+  /**
+   * Optional self-healing verification. Called BEFORE skipping a stage
+   * (when the `.done` marker exists). If `verify()` returns `false`, the
+   * stage is re-run even though its marker says "complete".
+   *
+   * This prevents the "stale marker" bug where a stage's side-effects
+   * were deleted after the marker was written (e.g., Ubuntu rootfs was
+   * removed but Stage 2's marker still says "done").
+   *
+   * If `verify` is not defined, the stage is trusted (old behavior).
+   */
+  verify?(ctx: BootstrapContext): Promise<boolean>;
 }
 
 /**

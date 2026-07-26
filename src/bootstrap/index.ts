@@ -26,6 +26,7 @@ import { loadConfig } from '../config/index.js';
 import { StateStore } from '../state/index.js';
 import { ensureDir, exists } from '../utils/fs.js';
 import { logger } from '../utils/log.js';
+import { exec } from '../utils/process.js';
 
 import {
   clearAllStageMarkers,
@@ -86,6 +87,19 @@ export const stages: readonly Stage[] = [
     name: 'Rootfs',
     description: 'Download & verify the Ubuntu 24.04 rootfs, then extract via proot-distro install.',
     run: (ctx) => stage2Rootfs(ctx),
+    // Self-healing: verify Ubuntu actually exists before skipping.
+    // If the rootfs was deleted after Stage 2's marker was written,
+    // re-run the stage to reinstall it.
+    verify: async () => {
+      try {
+        const r = await exec('proot-distro', ['list', '--quiet'], { timeoutMs: 10000 });
+        if (r.exitCode !== 0) return false;
+        const containers = r.stdout.trim().split('\n').map((s) => s.trim()).filter(Boolean);
+        return containers.includes('ubuntu');
+      } catch {
+        return false;
+      }
+    },
   },
   {
     id: 3,
@@ -255,14 +269,43 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<BootstrapR
     }
 
     // Marker check: skip if .done exists and not --force.
+    // But FIRST: if the stage defines a `verify()` method, call it to
+    // check that the stage's side-effects are still present. If verify
+    // returns false (e.g., Ubuntu rootfs was deleted), re-run the stage
+    // instead of skipping. This makes bootstrap SELF-HEALING — it never
+    // trusts cached state over actual machine state.
     if (!ctx.force) {
       const done = await isStageComplete(ctx.markersDir, stage.id);
       if (done) {
-        logger.info(`bootstrap: stage ${stage.id} already complete, skipping`);
-        // Record the prior duration if available, for the timing report.
-        const marker = await readDoneMarker(ctx.markersDir, stage.id);
-        if (marker?.durationMs) stageDurations[stage.id] = marker.durationMs;
-        continue;
+        // Self-healing: verify the stage's side-effects still exist.
+        if (stage.verify) {
+          let verified: boolean;
+          try {
+            verified = await stage.verify(ctx);
+          } catch (e) {
+            logger.warn(
+              { stage: stage.id, err: (e as Error).message },
+              'bootstrap: stage verify() threw — treating as not verified',
+            );
+            verified = false;
+          }
+          if (!verified) {
+            logger.info(
+              `bootstrap: stage ${stage.id} marker exists but verify() failed — re-running (self-healing)`,
+            );
+            // Fall through to run the stage again.
+          } else {
+            logger.info(`bootstrap: stage ${stage.id} already complete (verified), skipping`);
+            const marker = await readDoneMarker(ctx.markersDir, stage.id);
+            if (marker?.durationMs) stageDurations[stage.id] = marker.durationMs;
+            continue;
+          }
+        } else {
+          logger.info(`bootstrap: stage ${stage.id} already complete, skipping (no verify)`);
+          const marker = await readDoneMarker(ctx.markersDir, stage.id);
+          if (marker?.durationMs) stageDurations[stage.id] = marker.durationMs;
+          continue;
+        }
       }
     }
 

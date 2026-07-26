@@ -337,7 +337,7 @@ describe('bootstrap orchestrator', () => {
     }
   });
 
-  it('skips stages whose .done marker is already present', async () => {
+  it('skips stages whose .done marker is already present (and verify passes or stage has no verify)', async () => {
     seedDoneMarker(0, 'Preflight');
     seedDoneMarker(1, 'Host Deps');
     seedDoneMarker(2, 'Rootfs');
@@ -346,7 +346,11 @@ describe('bootstrap orchestrator', () => {
 
     const result = await bootstrap();
     expect(result.failedStage).toBeNull();
-    expect(result.completedStages).toEqual([5, 6, 7, 8]);
+    // Stage 2 has a verify() that checks proot-distro list --quiet for ubuntu.
+    // In the test environment, proot-distro isn't installed, so verify() returns
+    // false and Stage 2 is re-run (self-healing). Stages without verify() are
+    // trusted and skipped. So completedStages includes 2 (re-run) + 5,6,7,8.
+    expect(result.completedStages).toEqual([2, 5, 6, 7, 8]);
 
     expect(stage0Mock).not.toHaveBeenCalled();
     expect(stage4Mock).not.toHaveBeenCalled();

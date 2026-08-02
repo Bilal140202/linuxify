@@ -155,6 +155,22 @@ export async function runCli(argv: string[]): Promise<number> {
   });
 
   try {
+    // If no subcommand was given (just `linuxify` with no args, or only
+    // global flags like --json that don't specify a subcommand), run the
+    // smart launcher: bootstrap if needed, auto-repair if broken, or
+    // launch the Ubuntu shell if ready.
+    //
+    // But DON'T intercept --version, --help, -V, -h — those should still
+    // go to commander.
+    const hasSubcommand = argv.some((a) => !a.startsWith('-'));
+    const isVersionOrHelp = argv.some((a) => a === '--version' || a === '-V' || a === '--help' || a === '-h');
+
+    if (!hasSubcommand && !isVersionOrHelp) {
+      const { launchDefault } = await import('./launcher.js');
+      const ctx = await getCtx();
+      return await launchDefault(ctx);
+    }
+
     await program.parseAsync(argv, { from: 'user' });
     return exitCode;
   } catch (err) {

@@ -99,17 +99,15 @@ describe('runCli', () => {
     expect(code).not.toBe(0);
   });
 
-  it('returns 0 for a no-op invocation (no subcommand)', async () => {
-    // No subcommand: commander prints help (to stderr by default) and exits 0.
-    const chunks: string[] = [];
-    const spy = vi.spyOn(process.stderr, 'write').mockImplementation((c: unknown) => {
-      chunks.push(typeof c === 'string' ? c : String(c));
-      return true;
-    });
+  it('launches the default entrypoint for a no-op invocation (no subcommand)', async () => {
+    // No subcommand: now triggers the smart launcher (assessSystemState + launch).
+    // In the test environment (not Termux), it will assess as not-initialized
+    // and try to bootstrap, which fails at preflight. The exit code should be
+    // non-zero (bootstrap failure) — NOT 0 (help) like before.
     const code = await runCli([]);
-    expect(code).toBe(0);
-    expect(chunks.join('')).toContain('Usage:');
-    spy.mockRestore();
+    // The launcher tries to bootstrap, which fails because we're not in Termux.
+    // That's expected — the important thing is it DIDN'T print help and exit 0.
+    expect(code).not.toBe(0);
   });
 
   it('pre-scans --json from anywhere in argv', async () => {

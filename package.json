@@ -25,9 +25,7 @@
   "license": "MIT",
   "author": "Linuxify Contributors",
   "type": "module",
-  "bin": {
-    "linuxify": "./dist/cli/index.js"
-  },
+  "bin": "dist/cli/index.js",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [

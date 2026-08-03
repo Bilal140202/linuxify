@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### v0.1.0-alpha.15 — "Just type linuxify" release
+
+This is the final alpha release before v0.1.0 stable. It implements the
+user's architectural vision: Linuxify is now a **launcher with self-healing**,
+not a command collection.
+
+#### Breaking change: `linuxify` (no args) is now the primary entrypoint
+
+Before: `linuxify` with no args printed help and exited.
+After: `linuxify` with no args assesses system state and acts:
+  - Not initialized → offers bootstrap → launches shell
+  - Repairable → auto-repairs → launches shell
+  - Ready → launches shell immediately
+  - Broken → shows diagnosis
+
+All existing subcommands (`init`, `doctor`, `add`, etc.) still work exactly
+as before. The launcher only activates when NO subcommand is given.
+
+#### New: One-command installer
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
+```
+
+Installs Linuxify from GitHub, builds it, links it, and installs proot.
+After install, the user just types `linuxify` — no git clone, no npm install,
+no npm run build, no npm link.
+
+#### New: SystemState state machine (`src/system/`)
+
+`assessSystemState()` is the single function that determines whether
+Linuxify is ready to launch. Returns one of:
+  - `not-initialized` — first run, need to bootstrap
+  - `repairable` — something is broken but auto-fixable
+  - `ready` — everything works, launch the shell
+  - `broken` — something is wrong that we can't auto-fix
+
+#### New: Smart launcher (`src/cli/launcher.ts`)
+
+`launchDefault()` is the heart of the "just type linuxify" experience:
+  1. Assess state
+  2. If not initialized → offer bootstrap → launch shell
+  3. If repairable → auto-repair (missing user, missing distro) → launch shell
+  4. If ready → launch shell immediately
+  5. If broken → show diagnosis
+
+#### Self-healing summary (all stages)
+
+  - Stage 2: verify Ubuntu exists via `proot-distro list --quiet`
+  - Stage 3: verify linuxify user exists via `id linuxify`
+  - Doctor: reads reality, not stale state.json
+  - distro.bootable: auto-creates linuxify user if missing
+  - Diagnostics: 8 error patterns (bad-interpreter, command-not-found, etc.)
+  - Repair: phased plan with re-diagnose-after-each-phase
+
+#### Shared distro detection (single source of truth)
+
+All subsystems use `src/utils/distros.ts`:
+  - `getInstalledContainers()` — runs `proot-distro list --quiet`
+  - `getActiveDistro()` — resolves active distro from reality
+  - Used by: bootstrap, doctor, discovery, adopt, repair
+
+No more duplicate parsing, no more stale state.json, no more "Stage 2 says
+installed but doctor says not installed."
+
+#### All fixes from alpha.1 through alpha.14
+
+  - npm install works without --legacy-peer-deps (alpha.2)
+  - Repair no longer crashes Termux (alpha.4)
+  - Real interactive prompt with readline (alpha.4)
+  - Stage 1 uses `proot-distro list` not `proot-distro version` (alpha.5)
+  - Environment discovery + adopt (alpha.5)
+  - Diagnostics engine (alpha.6)
+  - Root-cause diagnosis (alpha.7)
+  - Rootfs download delegates to proot-distro (alpha.8)
+  - Discovery uses `proot-distro list --quiet` (alpha.9)
+  - Stage 2 adopts existing containers (alpha.9)
+  - Self-healing bootstrap with verify() (alpha.10)
+  - Stage 7 uses `--quiet` (alpha.11)
+  - Shared getActiveDistro() helper (alpha.12)
+  - Bootable check uses shared helper (alpha.13)
+  - Self-healing linuxify user creation (alpha.14)
+
+#### Stats
+
+  - 1434 tests passing, 3 skipped
+  - 0 TypeScript errors
+  - Build succeeds (tsup → dist/cli/index.js + dist/index.js)
+  - CLI verified: --version, --help, no-args launcher, doctor, discover
+
 ### Fixed (v0.1.0-alpha.5)
 - **CRITICAL: Stage 1 verification no longer uses non-existent `proot-distro
   version` command.** The old code called `proot-distro version` (which is NOT

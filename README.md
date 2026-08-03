@@ -4,10 +4,8 @@
 
 ### Run Linux developer tools on Android.
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen?logo=github)](https://github.com/linuxify/linuxify/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0--alpha-orange.svg)](CHANGELOG.md)
-[![Discord](https://img.shields.io/badge/discord-join%20chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/linuxify)
+[![Version](https://img.shields.io/badge/version-0.1.0--alpha.15-orange.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Termux-3DDC84?logo=android&logoColor=white)](#installation)
 
 **A compatibility layer, package manager, and diagnostic engine for Linux-oriented developer CLIs — running directly on Android, no root required.**
@@ -16,229 +14,209 @@
 
 ---
 
-> ⚠️ **Status: Alpha / Pre-release.** Linuxify is under active development. The CLI scaffold, all 14 core subsystems, and 5 seed packages are implemented (v0.1.0-alpha.1). APIs, package definitions, and CLI flags may change before v1.0. Star the repo to follow along, and read the [executive summary](docs/00-executive/executive-summary.md) for current status.
-
-## Why Linuxify?
-
-Modern developer tooling — AI coding agents, container CLIs, language servers, build chains — assumes it is running on a real Linux desktop. On Android, the only viable path is Termux → `proot` → Ubuntu → install Node → fix `PATH` → discover `process.platform === "android"` → patch the tool's source → finally use it. And then you repeat the entire ritual for *every* CLI you want.
-
-```text
-Install Termux
-  → Install proot
-    → Install Ubuntu
-      → Install Node
-        → Fix PATH
-          → Figure out why process.platform === "android"
-            → Patch the CLI source
-              → Finally use the tool
-```
-
-Each tool fails in similar ways: it hardcodes `x86_64`, expects glibc, checks for desktop environment variables, gates on `process.platform === "linux"`. The pain is **systemic**, not tool-specific. Linuxify collapses the entire chain into three commands and an idempotent environment that survives across installs, updates, and reboots.
+> ⚠️ **Status: Alpha.** Linuxify is under active development. Star the repo to follow along.
 
 ## Quick start
 
+**One command. That's it.**
+
+Inside Termux (from F-Droid, NOT Google Play):
+
 ```bash
-pkg install linuxify        # install the Linuxify CLI
-linuxify init               # bootstrap Ubuntu + runtimes + PATH
-linuxify add cline          # install, patch, and shim the Cline agent
-cline                       # runs directly from the Termux shell
+curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
 ```
 
-Linuxify is a first-class developer tool — verb-like in the spirit of `git`, `npm`, and `cargo` — not another wrapper script. See the [CLI specification](docs/03-cli/cli-specification.md) for the full command surface.
+Then:
 
-## Architecture
-
-Linuxify is structured as a set of cooperating subsystems, each with a single responsibility. The bootstrap layer brings up Termux + proot + Ubuntu + runtimes once; the launcher generates native Termux shims that exec into the proot environment on every invocation; the patcher applies known compatibility fixes to CLI tool sources; the doctor continuously verifies the environment and surfaces repair hints.
-
-```text
-linuxify/
-├── bootstrap/      # One-shot environment bring-up (Termux + proot + Ubuntu + runtimes)
-├── distro/         # Pluggable distro backends: ubuntu, debian, arch, alpine
-├── runtime/        # Pluggable runtime managers: node, python, rust, go, bun, deno
-├── packages/       # Tool definitions: cline.yml, codex.yml, aider.yml, etc.
-├── doctor/         # Health checks, environment diagnostics, auto-repair
-├── patcher/        # Detect platform-specific code in CLI tools and apply known fixes
-├── launcher/       # Generate native Termux shims that enter proot + run the tool
-└── registry/       # (Future) central package registry, versioning, signing
+```bash
+linuxify
 ```
 
-Deeper design rationale lives in [system architecture](docs/02-architecture/system-architecture.md), [bootstrap design](docs/05-bootstrap/bootstrap-design.md), and [launcher architecture](docs/06-launcher/launcher-architecture.md).
+Linuxify will:
+- ✓ Install Ubuntu (if needed)
+- ✓ Configure everything automatically
+- ✓ Open an Ubuntu shell
 
-## Features
+From that shell, install AI coding tools:
+```bash
+linuxify add cline
+linuxify add codex
+linuxify add aider
+```
 
-- **One-command bootstrap.** `linuxify init` is fully idempotent — run it once or a hundred times, the environment ends up in the same correct state.
-- **Pluggable distros.** Ubuntu 24.04 ships as the default; Debian, Arch, and Alpine are first-class backends via `linuxify use <distro>`. See [distro management](docs/05-bootstrap/distro-management.md).
-- **Pluggable runtimes.** Node.js LTS, Python 3.12, Rust, Go, Bun, and Deno are managed by Linuxify itself — no more `nvm`-in-Termux hacks.
-- **Declarative package definitions.** Every tool is described by a versioned YAML file — install steps, patches, env, doctor checks, compat metadata. See the [package spec](docs/09-registry/package-spec.md).
-- **AST-aware patcher.** The patcher edits JavaScript/TypeScript sources via AST transforms where possible and falls back to regex for everything else. Read the [patcher engine](docs/08-patcher/patcher-engine.md) doc.
-- **Doctor + auto-repair.** `linuxify doctor` runs a declarative checklist against your environment; `linuxify repair` fixes what it can. See the [doctor engine](docs/07-doctor/doctor-engine.md).
-- **Native launcher shims.** Tools installed via Linuxify are callable directly from the Termux shell — `cline`, `codex`, `aider` — with no wrapper-script tax.
-- **No root required.** Works entirely in user space via `proot`. Works on stock Android 9+.
-- **AI-agent friendly.** Every error message, doctor output, and YAML field is written to be readable by both humans and coding agents (Cline, Codex, Claude Code, Aider).
+Then just type `cline`, `codex`, or `aider` — they work directly.
 
-## Supported tools
+## What is Linuxify?
 
-| Tool | Description | Status |
-| --- | --- | --- |
-| [Cline](https://github.com/cline/cline) | AI coding agent that runs in your terminal | ✅ Supported |
-| [Codex](https://github.com/openai/codex) | OpenAI's terminal coding agent | ✅ Supported |
-| [Aider](https://github.com/Aider-AI/aider) | Pair-programming in your terminal with LLMs | ✅ Supported |
-| [Goose](https://github.com/block/goose) | Block's open-source AI agent for the terminal | 🟡 Partial |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Google's terminal agent for Gemini models | 🟡 Partial |
-| [OpenHands](https://github.com/All-Hands-AI/OpenHands) | Open-source autonomous coding agent | 🟡 Partial |
-| [Freebuff](https://github.com/freebuff/freebuff) | Community security/CTF CLI toolkit | 🔜 Planned |
+Modern developer tooling — AI coding agents, container CLIs, language servers — assumes it is running on a real Linux desktop. On Android, the only viable path is Termux → proot → Ubuntu → install Node → fix PATH → patch the tool's source. And then you repeat for *every* CLI.
 
-Want a tool that isn't listed? Open a `package-request` issue or contribute a `packages/<tool>.yml`. See [contribution guidelines](docs/16-community/contribution-guidelines.md).
+Linuxify collapses the entire chain into one command.
 
-## Supported distros
+```bash
+linuxify          # set up everything, open Ubuntu shell
+linuxify add cline  # install + patch + launcher
+cline              # works directly
+```
 
-| Distro | Status | Notes |
-| --- | --- | --- |
-| Ubuntu 24.04 LTS | ✅ Default | Fully tested on `aarch64`. |
-| Debian 12 (bookworm) | ✅ Supported | Tested on `aarch64` and `armv7l`. |
-| Arch Linux | 🟡 Best-effort | Rolling; patches welcome. |
-| Alpine Linux | 🔜 Planned | Musl-based; some Node native modules need rebuilds. |
+## Why Linuxify?
+
+- **One command.** Type `linuxify` — it figures out what's needed and does it.
+- **Self-healing.** If Ubuntu is missing, it reinstalls. If the linuxify user is missing, it recreates it. If PATH is broken, it fixes it.
+- **Doctor explains.** `linuxify doctor --explain` tells you what's wrong, why it matters, and how to fix it — in plain English.
+- **Repair plans.** `linuxify repair` shows a phased plan before acting, just like `apt` or `brew`.
+- **Diagnostics engine.** When something fails, Linuxify diagnoses the specific error (e.g., "bad interpreter after Python upgrade") and suggests the exact repair.
+- **Adopt existing environments.** Already have Ubuntu installed via proot-distro? `linuxify adopt ubuntu` — no reinstall.
+- **No root required.** Works entirely in user space via proot.
 
 ## Installation
 
-> 🛑 **Prerequisite:** Linuxify requires **Termux from F-Droid** — *not* the Google Play Store version. The Play Store build is deprecated by Termux upstream and will fail in confusing ways. Install Termux from [f-droid.org/packages/com.termux/](https://f-droid.org/packages/com.termux/) first.
+### Prerequisite
 
-### Method 1: Direct install from GitHub (Recommended)
+**Termux from F-Droid** — NOT Google Play. The Play Store version is deprecated.
+
+### Method 1: One-line installer (Recommended)
 
 ```bash
-# Inside Termux — one-line installer with prerequisite checks:
-curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/termux-build/termux-install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
+```
 
-# Or manually from source:
-git clone --depth 1 https://github.com/Bilal140202/linuxify.git
-cd linuxify
+### Method 2: Manual from source
+
+```bash
+git clone --depth 1 https://github.com/Bilal140202/linuxify.git ~/linuxify
+cd ~/linuxify
 npm install
 npm run build
 npm link
 ```
 
-### Method 2: From npm (once published)
+### After install
 
 ```bash
-npm install -g linuxify
+linuxify           # bootstrap + launch shell (first run)
+linuxify           # launch shell (subsequent runs — instant)
+linuxify add cline # install a CLI tool
+linuxify doctor    # health check
+linuxify --help    # see all commands
 ```
 
-### First run
+## The `linuxify` command (no args)
+
+Typing `linuxify` with no arguments is the primary entrypoint. It's a smart launcher:
+
+| State | What happens |
+|-------|-------------|
+| **Not initialized** | Offers to bootstrap (install Ubuntu, runtimes, PATH) → launches shell |
+| **Repairable** | Auto-repairs (missing user, missing distro) → launches shell |
+| **Ready** | Launches Ubuntu shell immediately |
+| **Broken** | Shows diagnosis, suggests `linuxify doctor` |
+
+Most users only ever need one command: `linuxify`. Everything else is an implementation detail.
+
+## Key commands
 
 ```bash
-linuxify discover           # scan for existing proot-distro environments
-linuxify init               # bootstrap Ubuntu + runtimes + PATH (idempotent)
-# — OR —
-linuxify adopt ubuntu       # adopt an existing proot-distro Ubuntu (no reinstall!)
-
-linuxify add cline          # install + patch + launcher
-linuxify doctor             # verify everything is healthy
+linuxify                     # launch (bootstrap if needed, then open shell)
+linuxify add cline           # install + patch + launcher
+linuxify add codex           # install OpenAI Codex
+linuxify add aider           # install Aider
+linuxify run cline           # run a CLI inside proot
+linuxify shell               # open Ubuntu shell
+linuxify doctor              # health check
+linuxify doctor --explain    # explain why each check matters
+linuxify repair              # apt/brew-style repair plan
+linuxify fix                 # AI-assisted diagnosis with repair commands
+linuxify report              # generate bug-report fingerprint
+linuxify discover            # scan for existing environments
+linuxify adopt ubuntu        # adopt existing Ubuntu (no reinstall)
+linuxify list                # list installed packages
+linuxify search ai           # search registry
+linuxify --help              # see all commands
 ```
 
-See [INSTALL.md](INSTALL.md) for detailed installation options. Architecture-specific notes (`aarch64`, `armv7l`, `x86_64` Chromebooks) are in [ARM considerations](docs/23-mobile/arm-considerations.md).
+## Supported tools
+
+| Tool | Description | Status |
+| --- | --- | --- |
+| [Cline](https://github.com/cline/cline) | AI coding agent | ✅ Supported |
+| [Codex](https://github.com/openai/codex) | OpenAI's terminal coding agent | ✅ Supported |
+| [Aider](https://github.com/Aider-AI/aider) | Pair-programming with LLMs | ✅ Supported |
+| [Goose](https://github.com/block/goose) | Block's open-source AI agent | ✅ Supported |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Google's terminal agent | ✅ Supported |
+
+## Supported distros
+
+| Distro | Status |
+| --- | --- |
+| Ubuntu 24.04 LTS | ✅ Default |
+| Debian 12 | ✅ Supported |
+| Arch Linux | ✅ Supported |
+| Alpine Linux | ✅ Supported |
+
+## Architecture
+
+```
+linuxify/
+├── src/
+│   ├── cli/           # CLI router + 27 subcommands + smart launcher
+│   ├── bootstrap/     # 8-stage self-healing bootstrap
+│   ├── distros/       # Pluggable distro backends (Ubuntu, Debian, Arch, Alpine)
+│   ├── runtimes/      # Pluggable runtimes (Node, Python, Rust, Go)
+│   ├── packages/      # Package YAML parsing + installation
+│   ├── launcher/      # Shell-script shim generation
+│   ├── doctor/        # 19 health checks + parallel engine + explanations
+│   ├── patcher/       # Regex/sed/shell patch engine
+│   ├── diagnostics/   # Error pattern matching ("AI mechanic")
+│   ├── diagnosis/     # Root-cause diagnosis rules
+│   ├── discovery/     # Environment scanner (find existing containers)
+│   ├── system/        # SystemState state machine (not-initialized/repairable/ready)
+│   ├── repair/        # Auto-repair engine with phased plans
+│   ├── report/        # Bug-report fingerprint generator
+│   ├── registry/      # v1 git-based package registry client
+│   ├── telemetry/     # Opt-in privacy-preserving telemetry
+│   ├── snapshot/      # Snapshot/restore
+│   ├── migrations/    # Self-update migration runner
+│   ├── plugins/       # Plugin SDK + hook dispatcher
+│   ├── config/        # TOML config with 5-layer override
+│   ├── state/         # Atomic state.json management
+│   └── utils/         # log, fs, net, crypto, process, errors, distros, prompt
+├── registry/          # Package definitions (cline.yml, codex.yml, etc.)
+├── docs/              # 75+ markdown docs + 16 ADRs
+└── tests/             # 1434+ unit tests
+```
+
+## Self-healing
+
+Linuxify never trusts cached state over actual state:
+
+- **Stage 2** verifies Ubuntu exists before skipping (reinstalls if deleted)
+- **Stage 3** verifies the linuxify user exists (recreates if missing)
+- **Doctor** checks reality via `proot-distro list --quiet`, not stale state.json
+- **Diagnostics** identifies specific errors (bad interpreter, network, disk full) and suggests targeted repairs
+- **Auto-repair** fixes safe issues (missing user, missing distro) during launch
+
+## Diagnostics engine
+
+When a command fails, Linuxify inspects the error and produces a specific diagnosis:
+
+```
+━━━ Broken interpreter — python3.13 no longer exists ━━━
+  WHAT:        proot-distro's shebang points to python3.13, which no longer exists.
+  WHY:         This happens after a Termux Python upgrade (3.13 → 3.14).
+  REPAIR:      pkg reinstall proot-distro
+  CONFIDENCE:  99%
+```
+
+8 built-in patterns: bad-interpreter, command-not-found, permission-denied, no-module-named, segfault, no-space, network-unreachable, apt-lock.
 
 ## Project structure
 
-```text
-linuxify/
-├── README.md                  # this file
-├── CONTRIBUTING.md
-├── CODE_OF_CONDUCT.md
-├── LICENSE                    # MIT
-├── CHANGELOG.md
-├── SECURITY.md
-├── package.json               # Node.js CLI package
-├── tsconfig.json              # TypeScript strict config
-├── tsup.config.ts             # Build config (ESM bundle)
-├── vitest.config.ts           # Test config
-├── .agent-context.md          # shared context for AI documentation agents
-├── .github/                   # issue templates, PR template, CI workflows
-├── src/                       # TypeScript source (14 subsystems)
-│   ├── cli/                   # CLI entry point + 25 subcommands
-│   ├── bootstrap/             # 8-stage idempotent environment bring-up
-│   ├── distros/               # Pluggable distro backends (Ubuntu, Debian, Arch, Alpine)
-│   ├── runtimes/              # Pluggable runtime managers (Node, Python, Rust, Go)
-│   ├── packages/              # Package YAML parsing + installation
-│   ├── launcher/              # Shell-script shim generation
-│   ├── doctor/                # 18 health checks + parallel engine
-│   ├── patcher/               # Regex/sed/shell patch engine + AST stubs
-│   ├── plugins/               # Plugin SDK + hook dispatcher
-│   ├── registry/              # v1 git-based registry client
-│   ├── telemetry/             # Opt-in privacy-preserving telemetry
-│   ├── repair/                # Auto-repair engine
-│   ├── snapshot/              # Snapshot/restore
-│   ├── migrations/            # Self-update migrations
-│   ├── config/                # TOML config + override layers
-│   ├── state/                 # Atomic state.json management
-│   └── utils/                 # log, fs, net, crypto, process, errors, constants
-├── tests/                     # 1400+ Vitest unit tests
-├── registry/                  # v1 git-based package registry
-│   ├── registry.toml
-│   └── packages/              # cline.yml, codex.yml, aider.yml, goose.yml, gemini-cli.yml
-└── docs/                      # 75 markdown docs + 15 ADRs (~300k words)
-```
-
-The full documentation tree — 25 numbered sections ranging from executive briefings to ADRs — is mapped in [`docs/INDEX.md`](docs/INDEX.md). For the recommended build order, read the [AI Build Guide](docs/00-executive/ai-build-guide.md).
-
-## Documentation
-
-The full documentation set spans **75 markdown files across 25 thematic
-directories** plus **15 Architecture Decision Records (ADRs)** — roughly
-**300,000 words** of expert-level design, specification, and operational
-guidance, written to be readable by both human contributors and AI coding
-agents (Cline, Codex, Claude Code, Aider).
-
-Start with the [documentation index](docs/INDEX.md). For the five-minute
-executive briefing, read
-[`docs/00-executive/executive-summary.md`](docs/00-executive/executive-summary.md).
-For the 3–5 year thesis, read
-[`docs/00-executive/vision.md`](docs/00-executive/vision.md). If you're an
-AI coding agent implementing Linuxify, start with the
-[AI Build Guide](docs/00-executive/ai-build-guide.md).
-
-| If you want to… | Read |
-| --- | --- |
-| Get the 5-minute briefing | [Executive summary](docs/00-executive/executive-summary.md) |
-| Understand the product strategy | [Strategy doc](docs/strategy.md) |
-| **Build Linuxify (AI agents start here)** | [AI Build Guide](docs/00-executive/ai-build-guide.md) |
-| Understand the product | [Product requirements doc](docs/01-product/prd.md) |
-| Read the system design | [System architecture](docs/02-architecture/system-architecture.md) |
-| See TypeScript type contracts | [Type reference](docs/02-architecture/type-reference.md) |
-| Use the CLI | [Command reference](docs/03-cli/command-reference.md) |
-| Write a package definition | [Package spec](docs/09-registry/package-spec.md) |
-| Extend Linuxify via plugins | [Plugin SDK](docs/10-plugin-sdk/plugin-sdk.md) |
-| Contribute | [Contribution guidelines](docs/16-community/contribution-guidelines.md) |
-| Troubleshoot | [Troubleshooting](docs/22-operations/troubleshooting.md) |
-| See all architecture decisions | [ADRs](docs/20-adrs/README.md) |
-
-### Key commands
-
-```bash
-linuxify init                  # Bootstrap Ubuntu + runtimes + PATH (idempotent)
-linuxify add cline             # Install + patch + launcher
-linuxify run cline             # Run a CLI inside proot
-linuxify doctor                # Health-check the environment
-linuxify fix                   # Diagnose + propose/appl repairs (AI mechanic)
-linuxify report --markdown     # Generate a bug-report-ready fingerprint
-linuxify repair                # Auto-repair detected issues
-```
+See [`docs/INDEX.md`](docs/INDEX.md) for the full documentation map. For the recommended build order, read the [AI Build Guide](docs/00-executive/ai-build-guide.md).
 
 ## Contributing
 
-Linuxify is open source under the MIT license. We welcome contributions of every size — new package definitions, patcher rules, doctor checks, docs fixes, distro backends, and bug reports.
-
-- Read [contribution guidelines](docs/16-community/contribution-guidelines.md) first.
-- For package requests, use the `package-request` issue template (see [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/)).
-- For architecture decisions you disagree with, open an ADR discussion in [`docs/20-adrs/`](docs/20-adrs/).
-- All contributions must pass the test matrix in [testing strategy](docs/12-testing/testing-strategy.md) and respect the [security model](docs/13-security/security-model.md).
-
-## Community
-
-- 💬 **Discord:** [discord.gg/linuxify](https://discord.gg/linuxify) (placeholder — link live before launch)
-- 🐛 **Issues:** [github.com/linuxify/linuxify/issues](https://github.com/linuxify/linuxify/issues)
-- 📜 **Code of Conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- 🔒 **Security reports:** see [SECURITY.md](SECURITY.md) — do not file public issues for vulnerabilities.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/16-community/developer-setup.md](docs/16-community/developer-setup.md).
 
 ## License
 
-MIT © Linuxify contributors. See [LICENSE](LICENSE) for the full text.
+MIT © Linuxify contributors. See [LICENSE](LICENSE).

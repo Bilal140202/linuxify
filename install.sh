@@ -4,9 +4,6 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
 #
-# Or:
-#   pkg install curl && curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
-#
 # After install, just type:
 #   linuxify
 #
@@ -44,12 +41,6 @@ if ! command -v curl &>/dev/null; then
   pkg install -y curl
 fi
 
-# Check git
-if ! command -v git &>/dev/null; then
-  echo -e "${YELLOW}→ Installing git…${NC}"
-  pkg install -y git
-fi
-
 # Check node
 if ! command -v node &>/dev/null; then
   echo -e "${YELLOW}→ Installing Node.js…${NC}"
@@ -68,24 +59,10 @@ fi
 echo -e "${YELLOW}→ Updating package lists…${NC}"
 pkg update -y 2>/dev/null || true
 
-# ── Install Linuxify ─────────────────────────────────────────────────
+# ── Install Linuxify from npm ────────────────────────────────────────
 
-echo -e "${YELLOW}→ Installing Linuxify from GitHub…${NC}"
-
-# Clone to a temp directory, build, and link
-INSTALL_DIR="$HOME/.linuxify-src"
-rm -rf "$INSTALL_DIR"
-git clone --depth 1 https://github.com/Bilal140202/linuxify.git "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-
-echo -e "${YELLOW}→ Installing dependencies…${NC}"
-npm install --no-audit --no-fund 2>/dev/null
-
-echo -e "${YELLOW}→ Building Linuxify…${NC}"
-npm run build 2>/dev/null
-
-echo -e "${YELLOW}→ Linking linuxify command…${NC}"
-npm link 2>/dev/null
+echo -e "${YELLOW}→ Installing Linuxify from npm…${NC}"
+npm install -g linuxify-cli
 
 # ── Verify installation ──────────────────────────────────────────────
 
@@ -94,16 +71,13 @@ if command -v linuxify &>/dev/null; then
   VERSION=$(linuxify --version 2>/dev/null || echo "unknown")
   echo -e "${GREEN}✓ Linuxify $VERSION installed successfully!${NC}"
 else
-  echo -e "${RED}✖ Installation may have failed. Trying manual link…${NC}"
-  ln -sf "$INSTALL_DIR/dist/cli/index.js" "$PREFIX/bin/linuxify"
-  chmod +x "$PREFIX/bin/linuxify"
-  if command -v linuxify &>/dev/null; then
-    echo -e "${GREEN}✓ Linuxify installed via manual link.${NC}"
-  else
-    echo -e "${RED}✖ Installation failed. Please try:${NC}"
-    echo "  cd $INSTALL_DIR && npm install && npm run build && npm link"
-    exit 1
-  fi
+  echo -e "${RED}✖ npm install failed. Trying from source…${NC}"
+  # Fallback: install from GitHub source
+  git clone --depth 1 https://github.com/Bilal140202/linuxify.git "$HOME/.linuxify-src"
+  cd "$HOME/.linuxify-src"
+  npm install --no-audit --no-fund
+  npm run build
+  npm link
 fi
 
 # ── Install proot and proot-distro ───────────────────────────────────

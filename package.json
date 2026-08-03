@@ -1,7 +1,7 @@
 {
-  "name": "linuxify",
-  "version": "0.1.0-alpha.1",
-  "description": "Run Linux developer tools on Android. A compatibility layer, package manager, and diagnostic engine for Linux-oriented developer CLIs running on Android via Termux + proot.",
+  "name": "linuxify-cli",
+  "version": "0.1.0-alpha.15",
+  "description": "Run Linux developer tools on Android. One command: linuxify. Installs Ubuntu, Node, Python, and AI coding CLIs (Cline, Codex, Aider) on Android via Termux + proot.",
   "keywords": [
     "android",
     "termux",

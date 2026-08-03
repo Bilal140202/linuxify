@@ -1,27 +1,34 @@
 # Installation Guide
 
-## One-Command Install (Recommended)
-
-Inside Termux (from F-Droid):
+## Method 1: npm (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
+# Inside Termux (from F-Droid):
+pkg install nodejs
+npm install -g linuxify-cli
 ```
 
-Then just type:
+Then:
 
 ```bash
 linuxify
 ```
 
-That's it. Linuxify will:
-1. Install Ubuntu (if needed)
-2. Install Node.js, Python, Git inside Ubuntu
-3. Configure PATH
-4. Create the linuxify user
-5. Open an Ubuntu shell
+## Method 2: One-Line Installer
 
-## Manual Install
+Installs Node.js, Linuxify, and proot automatically:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
+```
+
+Then:
+
+```bash
+linuxify
+```
+
+## Method 3: Manual from Source
 
 ```bash
 git clone --depth 1 https://github.com/Bilal140202/linuxify.git ~/linuxify
@@ -29,12 +36,6 @@ cd ~/linuxify
 npm install
 npm run build
 npm link
-```
-
-Then:
-
-```bash
-linuxify
 ```
 
 ## Prerequisites
@@ -64,9 +65,9 @@ Continue? [Y/n]
 ```
 
 Press Enter. Linuxify will:
-1. Run `pkg install proot proot-distro` (host dependencies)
-2. Run `proot-distro install ubuntu` (download + extract Ubuntu 24.04)
-3. Run `apt install` inside Ubuntu (build-essential, Node, Python, Git)
+1. Install proot and proot-distro (host dependencies)
+2. Install Ubuntu 24.04 via `proot-distro install ubuntu`
+3. Enter Ubuntu as root and run `apt install curl git build-essential nodejs npm python3`
 4. Create the `linuxify` user inside Ubuntu
 5. Set up `~/.linuxify/` directory structure
 6. Add `~/.linuxify/bin` to your PATH
@@ -106,19 +107,16 @@ linuxify repair              # auto-repair
 linuxify                     # try again
 ```
 
-### "No active distro"
+## Update
 
 ```bash
-linuxify discover            # see what's installed
-linuxify adopt ubuntu        # adopt existing Ubuntu
-# OR
-linuxify init                # install fresh
+npm update -g linuxify-cli
 ```
 
 ## Uninstall
 
 ```bash
-npm unlink -g linuxify
-rm -rf ~/.linuxify ~/linuxify ~/.linuxify-src
+npm uninstall -g linuxify-cli
+rm -rf ~/.linuxify
 proot-distro remove ubuntu  # optional: remove the Ubuntu container
 ```

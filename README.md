@@ -23,6 +23,12 @@
 Inside Termux (from F-Droid, NOT Google Play):
 
 ```bash
+npm install -g linuxify-cli
+```
+
+Or one-line installer (installs Node.js + Linuxify + proot automatically):
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
 ```
 
@@ -74,13 +80,20 @@ cline              # works directly
 
 **Termux from F-Droid** — NOT Google Play. The Play Store version is deprecated.
 
-### Method 1: One-line installer (Recommended)
+### Method 1: npm (Recommended)
+
+```bash
+pkg install nodejs    # if you don't have Node.js yet
+npm install -g linuxify-cli
+```
+
+### Method 2: One-line installer (installs everything automatically)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Bilal140202/linuxify/main/install.sh | bash
 ```
 
-### Method 2: Manual from source
+### Method 3: Manual from source
 
 ```bash
 git clone --depth 1 https://github.com/Bilal140202/linuxify.git ~/linuxify

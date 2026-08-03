@@ -54,6 +54,47 @@ export async function runShell(
     return EXIT_CODES.ENV_NOT_READY;
   }
 
+  // Ensure essential packages are installed inside the distro (as root).
+  // This guarantees Ubuntu uses its OWN Node.js/npm, not Termux's.
+  out.info('Ensuring essential packages are installed…');
+  try {
+    const { exec: execUtil } = await import('../../utils/process.js');
+    const ensureResult = await execUtil(
+      'proot-distro',
+      ['login', distroName, '--', 'bash', '-c',
+       'export DEBIAN_FRONTEND=noninteractive; ' +
+       'apt-get update -qq 2>/dev/null && ' +
+       'apt-get install -y -qq curl git build-essential nodejs npm python3 python3-pip 2>&1 | tail -3'],
+      { timeoutMs: 300_000, env: { TERM: 'dumb' } },
+    );
+    if (ensureResult.exitCode === 0) {
+      out.success('  ✓ Packages ready');
+    } else {
+      out.warn('  Package install had issues — continuing to shell.');
+    }
+  } catch {
+    out.warn('  Could not verify packages — continuing to shell.');
+  }
+
+  // Ensure the linuxify user exists.
+  try {
+    const { exec: execUtil } = await import('../../utils/process.js');
+    await execUtil(
+      'proot-distro',
+      ['login', distroName, '--', 'sh', '-c',
+       "id linuxify >/dev/null 2>&1 || " +
+       "(echo 'linuxify:x:1000:1000:Linuxify:/home/linuxify:/bin/bash' >> /etc/passwd && " +
+       "echo 'linuxify:*:19000:0:99999:7:::' >> /etc/shadow && " +
+       "echo 'linuxify:x:1000:' >> /etc/group && " +
+       "mkdir -p /home/linuxify && chown 1000:1000 /home/linuxify)"],
+      { timeoutMs: 30_000, env: { TERM: 'dumb' } },
+    );
+  } catch {
+    // Non-fatal.
+  }
+
+  out.info('');
+
   // Build the proot-distro login arguments.
   const prootArgs = ['login', distroName, '--user', user];
   if (workdir) {
@@ -65,7 +106,15 @@ export async function runShell(
 
     child.on('error', (err) => {
       out.error(`Failed to spawn proot-distro: ${err.message}`);
-      resolve(EXIT_CODES.PROOT_ENTER_FAILED);
+      // Fallback: try root login.
+      out.info('  Trying root shell…');
+      const rootChild = spawn('proot-distro', ['login', distroName], { stdio: 'inherit' });
+      rootChild.on('error', () => {
+        resolve(EXIT_CODES.PROOT_ENTER_FAILED);
+      });
+      rootChild.on('exit', (code) => {
+        resolve(code ?? EXIT_CODES.OK);
+      });
     });
 
     child.on('exit', (code, signal) => {

@@ -1,0 +1,61 @@
+name: docker-cli
+version: "latest"
+description: "Docker CLI — manage containers, images, and volumes. Connect to a remote Docker daemon or Docker Desktop."
+homepage: https://github.com/docker/cli
+license: Apache-2.0
+maintainer: "Linuxify Contributors"
+tags: [docker, containers, devops, deployment]
+category: devops
+runtime: node
+runtime_min_version: "20"
+package: docker-ce-cli
+launcher: docker
+package_manager: apt
+
+install:
+  - apt-get install -y ca-certificates curl gnupg
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce-cli docker-buildx-plugin docker-compose-plugin
+
+patches: []
+
+env:
+  DOCKER_HOST: ""
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node-20, node-22, node-24]
+  known_issues:
+    - id: docker-cli-001
+      severity: med
+      description: "Docker daemon doesn't run inside proot — use DOCKER_HOST to connect to a remote daemon"
+      workaround: "Set DOCKER_HOST=tcp://<remote-ip>:2375 or use Docker Desktop on another machine"
+  not_supported: []
+
+doctor:
+  - id: docker-cli.binary
+    name: "Docker CLI executes"
+    command: "docker --version"
+    expect: 0
+    fix_command: "linuxify add docker-cli"
+    severity: warn
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Docker CLI (not the daemon) runs inside proot. The Docker daemon itself
+  cannot run inside proot due to kernel namespace restrictions. Use this
+  CLI to connect to a remote Docker daemon:
+    export DOCKER_HOST=tcp://<remote-ip>:2375
+    docker ps

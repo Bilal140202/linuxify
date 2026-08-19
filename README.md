@@ -130,9 +130,15 @@ Most users only ever need one command: `linuxify`. Everything else is an impleme
 
 ```bash
 linuxify                     # launch (bootstrap if needed, then open shell)
-linuxify add cline           # install + patch + launcher
+linuxify add cline           # install AI coding agent
 linuxify add codex           # install OpenAI Codex
 linuxify add aider           # install Aider
+linuxify add wrangler        # install Cloudflare Wrangler
+linuxify add docker-cli      # install Docker CLI
+linuxify add kubectl         # install Kubernetes CLI
+linuxify add terraform       # install Terraform
+linuxify add pm2             # install PM2 process manager
+linuxify add playwright      # install Playwright browser automation
 linuxify run cline           # run a CLI inside proot
 linuxify shell               # open Ubuntu shell
 linuxify doctor              # health check
@@ -149,6 +155,8 @@ linuxify --help              # see all commands
 
 ## Supported tools
 
+### AI Coding Agents
+
 | Tool | Description | Status |
 | --- | --- | --- |
 | [Cline](https://github.com/cline/cline) | AI coding agent | ✅ Supported |
@@ -156,6 +164,23 @@ linuxify --help              # see all commands
 | [Aider](https://github.com/Aider-AI/aider) | Pair-programming with LLMs | ✅ Supported |
 | [Goose](https://github.com/block/goose) | Block's open-source AI agent | ✅ Supported |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Google's terminal agent | ✅ Supported |
+
+### DevOps & Cloud Tools
+
+| Tool | Description | Status |
+| --- | --- | --- |
+| [Wrangler](https://github.com/cloudflare/workers-sdk) | Cloudflare Workers CLI | ✅ Supported |
+| [Docker CLI](https://github.com/docker/cli) | Container management (connect to remote daemon) | ✅ Supported |
+| [kubectl](https://kubernetes.io) | Kubernetes cluster management | ✅ Supported |
+| [Terraform](https://developer.hashicorp.com/terraform) | Infrastructure as Code | ✅ Supported |
+| [PM2](https://github.com/Unitech/pm2) | Node.js process manager | ✅ Supported |
+
+### Testing & Automation
+
+| Tool | Description | Status |
+| --- | --- | --- |
+| [Playwright](https://github.com/microsoft/playwright) | Browser automation & testing | ✅ Supported |
+| [Git](https://git-scm.com) | Version control (pre-installed) | ✅ Supported |
 
 ## Supported distros
 

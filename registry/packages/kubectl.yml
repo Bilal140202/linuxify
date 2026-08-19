@@ -1,0 +1,49 @@
+name: kubectl
+version: "latest"
+description: "Kubernetes CLI — deploy and manage applications on Kubernetes clusters."
+homepage: https://kubernetes.io/docs/reference/kubectl/
+license: Apache-2.0
+maintainer: "Linuxify Contributors"
+tags: [kubernetes, k8s, devops, deployment, containers]
+category: devops
+runtime: node
+runtime_min_version: "20"
+package: kubectl
+launcher: kubectl
+package_manager: binary
+
+install:
+  - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
+  - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+  - rm -f kubectl
+
+patches: []
+
+env: {}
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node-20, node-22, node-24]
+  known_issues: []
+  not_supported: []
+
+doctor:
+  - id: kubectl.binary
+    name: "kubectl executes"
+    command: "kubectl version --client"
+    expect: 0
+    fix_command: "linuxify add kubectl"
+    severity: warn
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  kubectl connects to a Kubernetes cluster API server.
+  Configure with: kubectl config set-cluster ...

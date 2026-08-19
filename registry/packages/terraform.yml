@@ -1,0 +1,51 @@
+name: terraform
+version: "latest"
+description: "HashiCorp Terraform — infrastructure as code for cloud resources (AWS, GCP, Azure, Cloudflare)."
+homepage: https://developer.hashicorp.com/terraform
+license: MPL-2.0
+maintainer: "Linuxify Contributors"
+tags: [terraform, iac, infrastructure, devops, cloud]
+category: devops
+runtime: node
+runtime_min_version: "20"
+package: terraform
+launcher: terraform
+package_manager: binary
+
+install:
+  - apt-get install -y wget unzip
+  - TF_VERSION=$(curl -sL https://checkpoint-api.hashicorp.com/v1/check/terraform | python3 -c "import sys,json; print(json.load(sys.stdin)['current_version'])")
+  - wget -q "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_arm64.zip"
+  - unzip -o terraform_${TF_VERSION}_linux_arm64.zip -d /usr/local/bin/
+  - rm -f terraform_${TF_VERSION}_linux_arm64.zip
+
+patches: []
+
+env: {}
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node-20, node-22, node-24]
+  known_issues: []
+  not_supported: []
+
+doctor:
+  - id: terraform.binary
+    name: "Terraform executes"
+    command: "terraform version"
+    expect: 0
+    fix_command: "linuxify add terraform"
+    severity: warn
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Terraform on ARM64 Android via proot. Works fully for planning and
+  applying infrastructure changes to cloud providers.

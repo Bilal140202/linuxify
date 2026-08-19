@@ -1,0 +1,47 @@
+name: git
+version: "system"
+description: "Git version control system — already installed in Ubuntu by Linuxify bootstrap, but this ensures the latest version."
+homepage: https://git-scm.com
+license: GPL-2.0
+maintainer: "Linuxify Contributors"
+tags: [vcs, git, version-control, development]
+category: devops
+runtime: node
+runtime_min_version: "20"
+package: git
+launcher: git
+package_manager: apt
+
+install:
+  - apt-get install -y git
+
+patches: []
+
+env: {}
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian, arch]
+  tested_runtimes: [node-20, node-22, node-24]
+  known_issues: []
+  not_supported: []
+
+doctor:
+  - id: git.binary
+    name: "Git binary executes"
+    command: "git --version"
+    expect: 0
+    fix_command: "apt-get install -y git"
+    severity: warn
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Git is installed during Linuxify bootstrap (Stage 3).
+  This package definition ensures it's available and up to date.

@@ -1,0 +1,65 @@
+name: wrangler
+version: "3.99.0"
+description: "Cloudflare Wrangler CLI — build, deploy, and manage Cloudflare Workers, Pages, and R2 from your terminal."
+homepage: https://github.com/cloudflare/workers-sdk
+license: MIT
+maintainer: "Linuxify Contributors"
+tags: [cloudflare, workers, serverless, deployment, devops]
+category: devops
+runtime: node
+runtime_min_version: "20"
+package: wrangler
+launcher: wrangler
+package_manager: npm
+
+install:
+  - npm install -g wrangler@latest
+
+patches: []
+
+env:
+  CLOUDFLARE_PLATFORM: linux
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node-20, node-22, node-24]
+  known_issues:
+    - id: wrangler-001
+      severity: low
+      description: "wrangler login opens a browser — on Android, copy the URL manually"
+      workaround: "Copy the OAuth URL from the terminal and open it in a browser"
+  not_supported: [alpine]
+
+doctor:
+  - id: wrangler.binary
+    name: "Wrangler binary executes"
+    command: "wrangler --version"
+    expect: 0
+    fix_command: "linuxify patch wrangler"
+    severity: fail
+
+repair:
+  - when: wrangler.binary
+    strategy: reinstall
+    description: "Wrangler binary is broken — reinstall"
+    risk: moderate
+    steps:
+      - npm uninstall -g wrangler
+      - npm install -g wrangler@latest
+    fixes: "Reinstalls Wrangler with latest version"
+    requires_network: true
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Wrangler is Cloudflare's CLI for deploying Workers, Pages, and R2.
+  Run `wrangler login` to authenticate with your Cloudflare account.
+  On Android, the OAuth URL will be printed in the terminal — copy it
+  and open it in a browser manually.

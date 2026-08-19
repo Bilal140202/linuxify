@@ -1,0 +1,54 @@
+name: playwright
+version: "latest"
+description: "Playwright browser automation — run Chromium, Firefox, and WebKit for testing and scraping."
+homepage: https://github.com/microsoft/playwright
+license: Apache-2.0
+maintainer: "Linuxify Contributors"
+tags: [playwright, browser, automation, testing, scraping]
+category: testing
+runtime: node
+runtime_min_version: "20"
+package: playwright
+launcher: playwright
+package_manager: npm
+
+install:
+  - npm install -g playwright
+  - npx playwright install --with-deps chromium
+
+patches: []
+
+env:
+  PLAYWRIGHT_BROWSERS_PATH: /home/linuxify/.cache/ms-playwright
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node-20, node-22, node-24]
+  known_issues:
+    - id: playwright-001
+      severity: med
+      description: "Chromium may not start on some Android kernel versions due to sandbox limitations"
+      workaround: "Run with --no-sandbox: npx playwright launch --no-sandbox"
+  not_supported: []
+
+doctor:
+  - id: playwright.binary
+    name: "Playwright executes"
+    command: "npx playwright --version"
+    expect: 0
+    fix_command: "linuxify add playwright"
+    severity: warn
+
+permissions:
+  network: true
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  Playwright installs headless Chromium for browser automation.
+  Useful for web scraping, automated testing, and screenshot generation.
+  Use --no-sandbox flag if Chromium fails to start inside proot.

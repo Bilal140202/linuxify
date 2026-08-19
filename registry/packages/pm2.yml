@@ -1,0 +1,49 @@
+name: pm2
+version: "latest"
+description: "PM2 process manager — keep Node.js apps running, manage logs, auto-restart on crash."
+homepage: https://github.com/Unitech/pm2
+license: AGPL-3.0
+maintainer: "Linuxify Contributors"
+tags: [pm2, process-manager, nodejs, deployment, devops]
+category: devops
+runtime: node
+runtime_min_version: "20"
+package: pm2
+launcher: pm2
+package_manager: npm
+
+install:
+  - npm install -g pm2@latest
+
+patches: []
+
+env: {}
+
+compat:
+  min_linuxify: "0.1.0"
+  tested_distros: [ubuntu, debian]
+  tested_runtimes: [node-20, node-22, node-24]
+  known_issues: []
+  not_supported: []
+
+doctor:
+  - id: pm2.binary
+    name: "PM2 executes"
+    command: "pm2 --version"
+    expect: 0
+    fix_command: "linuxify add pm2"
+    severity: warn
+
+permissions:
+  network: false
+  filesystem:
+    binds: [/sdcard]
+  services:
+    start: []
+  setuid: false
+
+notes: |
+  PM2 manages Node.js processes inside Ubuntu (proot).
+  Use: pm2 start app.js --name my-app
+       pm2 logs
+       pm2 list

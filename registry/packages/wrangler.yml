@@ -63,3 +63,8 @@ notes: |
   Run `wrangler login` to authenticate with your Cloudflare account.
   On Android, the OAuth URL will be printed in the terminal — copy it
   and open it in a browser manually.
+
+  workerd (local dev server) requires aarch64 binary from Cloudflare.
+  If `wrangler dev` fails, use `wrangler deploy --dry-run` to validate
+  without starting the local server. Remote Workers deployment works
+  fully from Android.

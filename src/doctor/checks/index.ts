@@ -31,6 +31,7 @@ import { hostTermuxCheck } from './host-termux.js';
 import { networkDnsCheck } from './network-dns.js';
 import { networkGithubCheck } from './network-github.js';
 import { networkNpmCheck } from './network-npm.js';
+import { npmCacheWritableCheck } from './npm-cache-writable.js';
 import { pathLinuxifyBinCheck } from './path-linuxify-bin.js';
 import { pathProotCheck } from './path-proot.js';
 import { pathProotDistroUsableCheck } from './path-proot-distro-usable.js';
@@ -63,6 +64,7 @@ export const ALL_CHECKS: DoctorCheck[] = [
   runtimeNodeCheck,
   runtimePythonCheck,
   runtimeGitCheck,
+  npmCacheWritableCheck,
   // path
   pathLinuxifyBinCheck,
   pathTermuxPrefixCheck,

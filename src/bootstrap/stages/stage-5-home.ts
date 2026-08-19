@@ -36,6 +36,7 @@ export const LINUXIFY_HOME_SUBDIRS: readonly string[] = [
   'cache',
   'backups',
   'bin',
+  'registry',
   '.bootstrap',
 ] as const;
 
@@ -167,6 +168,32 @@ export async function stage5Home(ctx: BootstrapContext): Promise<StageResult> {
       logger.info('stage 5: state.json already exists, preserving', { path: statePath });
     }
 
+    // 4. Auto-clone the registry if it doesn't exist.
+    // First-time users always hit this — without the registry, `linuxify add`
+    // and `linuxify search` can't find any packages. We auto-clone here so the
+    // user never has to run `linuxify update` manually on first run.
+    const registryDir = join(ctx.linuxifyHome, 'registry');
+    let registryCloned = false;
+    if (!(await exists(registryDir)) || !(await exists(join(registryDir, 'packages')))) {
+      logger.info('stage 5: registry not found — auto-cloning');
+      try {
+        const { createRegistryClient } = await import('../../registry/index.js');
+        const registryClient = createRegistryClient(ctx.config);
+        await registryClient.update();
+        registryCloned = true;
+        logger.info('stage 5: registry cloned successfully');
+      } catch (err) {
+        // Non-fatal — registry can be cloned later with `linuxify update`.
+        // We don't want to fail bootstrap just because GitHub is unreachable.
+        logger.warn(
+          { err: (err as Error).message },
+          'stage 5: registry auto-clone failed — run `linuxify update` later',
+        );
+      }
+    } else {
+      logger.info('stage 5: registry already exists, skipping clone');
+    }
+
     return {
       success: true,
       durationMs: Date.now() - start,
@@ -175,6 +202,7 @@ export async function stage5Home(ctx: BootstrapContext): Promise<StageResult> {
         subdirsCreated: LINUXIFY_HOME_SUBDIRS.length,
         configWritten,
         stateWritten,
+        registryCloned,
       },
     };
   } catch (e) {

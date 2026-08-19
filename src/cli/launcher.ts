@@ -185,6 +185,8 @@ async function launchShell(ctx: CommandContext, distro: string): Promise<number>
   // This runs apt update + apt install inside Ubuntu as root (no --user flag
   // = root by default in proot-distro). We install curl, git, build-essential,
   // nodejs, npm so that Ubuntu uses its own runtimes, NOT Termux's.
+  // Also fixes the npm cache rename bug by setting TMPDIR and npm cache to
+  // home-relative paths (avoids proot mount-point mismatch).
   out.info('Ensuring essential packages are installed inside Ubuntu…');
   try {
     const ensureResult = await exec(
@@ -192,8 +194,16 @@ async function launchShell(ctx: CommandContext, distro: string): Promise<number>
       ['login', distro, '--', 'bash', '-c',
        'export DEBIAN_FRONTEND=noninteractive; ' +
        'apt-get update -qq && ' +
-       'apt-get install -y -qq curl git build-essential nodejs npm python3 python3-pip 2>&1 | tail -5'],
-      { timeoutMs: 300_000, env: { TERM: 'dumb' } }, // 5 min timeout for apt
+       'apt-get install -y -qq curl git build-essential nodejs npm python3 python3-pip bash 2>&1 | tail -5; ' +
+       // Fix npm cache rename bug: set cache to $HOME/.npm, create $HOME/.tmp, set TMPDIR
+       'mkdir -p /root/.npm /root/.tmp; ' +
+       'npm config set cache /root/.npm 2>/dev/null || true; ' +
+       'echo "export TMPDIR=$HOME/.tmp" >> /root/.bashrc 2>/dev/null || true; ' +
+       // Also set for the linuxify user
+       'mkdir -p /home/linuxify/.npm /home/linuxify/.tmp 2>/dev/null || true; ' +
+       'su - linuxify -c "npm config set cache \$HOME/.npm" 2>/dev/null || true; ' +
+       'su - linuxify -c "echo \'export TMPDIR=\$HOME/.tmp\' >> ~/.bashrc" 2>/dev/null || true'],
+      { timeoutMs: 300_000, env: { TERM: 'dumb' } },
     );
 
     if (ensureResult.exitCode !== 0) {
@@ -201,6 +211,7 @@ async function launchShell(ctx: CommandContext, distro: string): Promise<number>
       logger.warn({ exitCode: ensureResult.exitCode, stderr: ensureResult.stderr.slice(0, 500) }, 'apt install in launchShell had non-zero exit');
     } else {
       out.success('  ✓ Packages ready');
+      out.success('  ✓ npm cache configured (proot rename bug fix)');
     }
   } catch (err) {
     out.warn(`  Package check failed: ${(err as Error).message} — continuing to shell.`);

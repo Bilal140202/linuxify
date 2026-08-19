@@ -90,7 +90,7 @@ endpoint = "https://sync.linuxify.sh"
 
 # Registry controls where package definitions are fetched from.
 [registry]
-url = "https://github.com/linuxify/registry"
+url = "https://github.com/Bilal140202/linuxify"
 branch = "main"
 trust_self_signed = false
 

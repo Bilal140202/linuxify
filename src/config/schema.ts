@@ -121,7 +121,7 @@ export type SyncConfig = z.infer<typeof SyncSchema>;
 export const RegistrySchema = z
   .object({
     /** Git URL of the package registry. */
-    url: z.string().default('https://github.com/linuxify/registry'),
+    url: z.string().default('https://github.com/Bilal140202/linuxify'),
     /** Branch/tag to check out from the registry. */
     branch: z.string().default('main'),
     /** Whether to trust self-signed TLS certificates (insecure; CI only). */

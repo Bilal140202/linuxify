@@ -76,13 +76,15 @@ export async function runRun(
   // linuxify -- <binary> <args...>` to enter the proot and run the package's
   // binary directly. The binary is resolved by PATH inside the proot.
   //
+  // We set TMPDIR=$HOME/.tmp inside the proot to avoid the npm cache rename
+  // bug (proot mount-point mismatch between /tmp and ~/.npm).
   // We forward stdio so the user's terminal is connected directly to the
   // child process. Signals (SIGINT, SIGTERM) are forwarded so Ctrl-C kills
   // both the proot and the wrapped tool.
   return new Promise<number>((resolve) => {
     const child = spawn(
       'proot-distro',
-      ['login', distroName, '--user', 'linuxify', '--', install.name, ...args],
+      ['login', distroName, '--user', 'linuxify', '--', 'bash', '-c', `export TMPDIR=\$HOME/.tmp; exec ${install.name} ${args.map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(' ')}`],
       { stdio: 'inherit' },
     );
 

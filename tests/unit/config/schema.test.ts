@@ -38,7 +38,7 @@ describe('ConfigSchema', () => {
       expect(result.telemetry.sample_rate).toBe(0.1);
       expect(result.sync.enabled).toBe(false);
       expect(result.sync.endpoint).toBe('https://sync.linuxify.sh');
-      expect(result.registry.url).toBe('https://github.com/linuxify/registry');
+      expect(result.registry.url).toBe('https://github.com/Bilal140202/linuxify');
       expect(result.registry.branch).toBe('main');
       expect(result.registry.trust_self_signed).toBe(false);
       expect(result.logging.level).toBe('info');

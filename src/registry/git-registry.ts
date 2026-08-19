@@ -66,7 +66,7 @@ import type { RegistryClient, RegistryEntry, RegistryMetadata, SearchOpts, Searc
 // ---------------------------------------------------------------------------
 
 /** Default upstream registry URL (matches `config/defaults.ts`). */
-const DEFAULT_REGISTRY_URL = 'https://github.com/linuxify/registry';
+const DEFAULT_REGISTRY_URL = 'https://github.com/Bilal140202/linuxify';
 
 /** Default registry branch. */
 const DEFAULT_BRANCH = 'main';
@@ -75,7 +75,10 @@ const DEFAULT_BRANCH = 'main';
 const REGISTRY_SUBDIR = 'registry';
 
 /** Subdirectory of the clone that holds per-package YAML files. */
-const PACKAGES_SUBDIR = 'packages';
+const PACKAGES_SUBDIR = 'registry/packages';
+
+/** Fallback subdirectory (for standalone registry repos or test fixtures). */
+const PACKAGES_SUBDIR_FALLBACK = 'packages';
 
 /** Filename of the registry metadata file at the clone root. */
 const REGISTRY_TOML_FILENAME = 'registry.toml';
@@ -303,12 +306,12 @@ export class GitRegistryClient implements RegistryClient {
     return this.cache.getOrCompute(
       cacheKey,
       async () => {
-        const filePath = path.join(this.localPath, PACKAGES_SUBDIR, `${name}.yml`);
-        if (!(await exists(filePath))) return null;
+        // Try registry/packages/ first (cloned from linuxify repo), then packages/ (standalone registry or fixtures).
+        const primaryPath = path.join(this.localPath, PACKAGES_SUBDIR, `${name}.yml`);
+        const fallbackPath = path.join(this.localPath, PACKAGES_SUBDIR_FALLBACK, `${name}.yml`);
+        const filePath = (await exists(primaryPath)) ? primaryPath : (await exists(fallbackPath)) ? fallbackPath : null;
+        if (!filePath) return null;
         const text = await fsReadFile(filePath, 'utf8');
-        // parsePackageYaml runs the full Zod schema; callers get a fully
-        // validated PackageDefinition. Invalid YAML throws PackageError
-        // (propagated to the caller).
         return parsePackageYaml(text);
       },
       TTL_PACKAGE_DETAIL_MS,
@@ -348,7 +351,10 @@ export class GitRegistryClient implements RegistryClient {
    * @returns Array of {@link RegistryEntry}, sorted alphabetically by name.
    */
   protected async scanPackagesFromDisk(): Promise<RegistryEntry[]> {
-    const packagesDir = path.join(this.localPath, PACKAGES_SUBDIR);
+    // Try registry/packages/ first, then packages/ (for standalone repos or test fixtures).
+    const primaryDir = path.join(this.localPath, PACKAGES_SUBDIR);
+    const fallbackDir = path.join(this.localPath, PACKAGES_SUBDIR_FALLBACK);
+    const packagesDir = (await exists(primaryDir)) ? primaryDir : fallbackDir;
     let files: string[];
     try {
       files = await readdir(packagesDir);
@@ -449,7 +455,10 @@ export class GitRegistryClient implements RegistryClient {
    *   missing, unparseable, or missing required fields.
    */
   protected async readRegistryToml(): Promise<RegistryMetadata> {
-    const tomlPath = path.join(this.localPath, REGISTRY_TOML_FILENAME);
+    // Try registry/registry.toml first (cloned from linuxify repo), then registry.toml at root (fixtures).
+    const primaryPath = path.join(this.localPath, 'registry', REGISTRY_TOML_FILENAME);
+    const fallbackPath = path.join(this.localPath, REGISTRY_TOML_FILENAME);
+    const tomlPath = (await exists(primaryPath)) ? primaryPath : fallbackPath;
     let text: string;
     try {
       text = await fsReadFile(tomlPath, 'utf8');

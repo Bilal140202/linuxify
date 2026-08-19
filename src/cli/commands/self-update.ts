@@ -45,7 +45,7 @@ export async function runSelfUpdate(
   // is scheduled for v1.1. For now we print a friendly message and exit 0
   // so CI scripts that call `linuxify self-update` don't break.
   out.info('Self-update is not yet implemented in this build.');
-  out.info('  To update manually: npm install -g linuxify@latest');
+  out.info('  To update manually: npm install -g linuxify-cli@latest');
   out.info('  Or visit: https://github.com/Bilal140202/linuxify/releases');
   return EXIT_CODES.OK;
 }

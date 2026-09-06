@@ -199,10 +199,10 @@ async function launchShell(ctx: CommandContext, distro: string): Promise<number>
        'mkdir -p /root/.npm /root/.tmp; ' +
        'npm config set cache /root/.npm 2>/dev/null || true; ' +
        'echo "export TMPDIR=$HOME/.tmp" >> /root/.bashrc 2>/dev/null || true; ' +
-       // Also set for the linuxify user
+       // Also set for the linuxify user — use grep guard for idempotency
        'mkdir -p /home/linuxify/.npm /home/linuxify/.tmp 2>/dev/null || true; ' +
-       'su - linuxify -c "npm config set cache \$HOME/.npm" 2>/dev/null || true; ' +
-       'su - linuxify -c "echo \'export TMPDIR=\$HOME/.tmp\' >> ~/.bashrc" 2>/dev/null || true'],
+       'su - linuxify -c "npm config set cache $HOME/.npm" 2>/dev/null || true; ' +
+       'su - linuxify -c "grep -q TMPDIR ~/.bashrc 2>/dev/null || echo export TMPDIR=$HOME/.tmp >> ~/.bashrc" 2>/dev/null || true'],
       { timeoutMs: 300_000, env: { TERM: 'dumb' } },
     );
 

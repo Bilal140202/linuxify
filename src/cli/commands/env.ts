@@ -12,7 +12,7 @@
  */
 
 
-import { EXIT_CODES } from '../../utils/constants.js';
+import { EXIT_CODES, LINUXIFY_VERSION } from '../../utils/constants.js';
 import { getLinuxifyHome, getTermuxPrefix } from '../../utils/process.js';
 import type { CommandContext } from '../context.js';
 
@@ -26,7 +26,7 @@ function buildEnv(ctx: CommandContext, packageName?: string): Record<string, str
     LINUXIFY_HOME: getLinuxifyHome(),
     LINUXIFY_PREFIX: getTermuxPrefix(),
     LINUXIFY_DISTRO: ctx.flags.distro ?? ctx.state.active_distro ?? ctx.config.distro.default,
-    LINUXIFY_VERSION: ctx.config.config_schema_version.toString(),
+    LINUXIFY_VERSION: LINUXIFY_VERSION,
   };
 
   // Add runtime paths from installed runtimes.

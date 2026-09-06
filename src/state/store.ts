@@ -394,12 +394,26 @@ export class StateStore {
    */
   async unlock(): Promise<void> {
     try {
+      // Only delete the lock if WE own it (PID matches). This fixes AUDIT-3-003:
+      // unconditional unlink could delete another process's lock.
+      try {
+        const raw = await readJson(this.lockPath);
+        const parsed = LockFileSchema.safeParse(raw);
+        if (parsed.success && parsed.data.pid !== process.pid) {
+          logger.warn(
+            { path: this.lockPath, ownerPid: parsed.data.pid, ourPid: process.pid },
+            'lock is owned by a different PID — not removing',
+          );
+          return;
+        }
+      } catch {
+        // Lock file missing or unreadable — safe to try unlink.
+      }
       await unlink(this.lockPath);
       logger.debug({ path: this.lockPath }, 'state lock released');
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') {
-        // Already gone — nothing to do.
         return;
       }
       throw error;

@@ -97,7 +97,7 @@ export const distroBootableCheck: DoctorCheck = {
         status: 'fail',
         message: `proot login failed to spawn: ${(e as Error).message}`,
         detail: { activeDistro: active, error: (e as Error).message },
-        fixCommand: 'linuxify init --rebuild-rootfs',
+        fixCommand: 'linuxify init --from-stage 2',
         fixDocs: 'https://docs.linuxify.dev/22-operations/troubleshooting',
         durationMs: Date.now() - start,
       };
@@ -109,7 +109,7 @@ export const distroBootableCheck: DoctorCheck = {
         status: 'fail',
         message: `proot login timed out after ${BOOT_TIMEOUT_MS} ms.`,
         detail: { activeDistro: active, timeoutMs: BOOT_TIMEOUT_MS },
-        fixCommand: 'linuxify init --rebuild-rootfs',
+        fixCommand: 'linuxify init --from-stage 2',
         fixDocs: 'https://docs.linuxify.dev/22-operations/troubleshooting',
         durationMs: Date.now() - start,
       };
@@ -126,7 +126,7 @@ export const distroBootableCheck: DoctorCheck = {
           stdout: result.stdout.slice(0, 500),
           stderr: result.stderr.slice(0, 1000),
         },
-        fixCommand: 'linuxify init --rebuild-rootfs',
+        fixCommand: 'linuxify init --from-stage 2',
         fixDocs: 'https://docs.linuxify.dev/22-operations/troubleshooting',
         durationMs: Date.now() - start,
       };

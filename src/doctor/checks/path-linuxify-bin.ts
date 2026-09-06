@@ -35,7 +35,7 @@ export const pathLinuxifyBinCheck: DoctorCheck = {
     what: 'Verifies that `~/.linuxify/bin` is on your shell PATH. This is the directory where Linuxify installs launcher shims — small shell scripts that let you type `cline` instead of `linuxify run cline`.',
     why: 'When you run `linuxify add cline`, Linuxify creates a launcher script at `~/.linuxify/bin/cline` that enters proot and runs the real Cline binary. For the `cline` command to work from any terminal, `~/.linuxify/bin` must be on your PATH, just like `/usr/bin` or `/data/data/com.termux/files/usr/bin`.',
     consequence: 'Commands like `cline`, `codex`, `aider` won\'t be found. You\'d have to type the full path (`~/.linuxify/bin/cline`) or use `linuxify run cline` every time.',
-    fix: 'linuxify repair paths',
+    fix: 'linuxify repair --check path.linuxify_bin',
   },
 
   async run(): Promise<DoctorResult> {
@@ -57,10 +57,10 @@ export const pathLinuxifyBinCheck: DoctorCheck = {
         status: 'fail',
         message: `~/.linuxify/bin (${target}) is not on PATH.`,
         detail: { target, pathEntries: entries },
-        // `linuxify repair paths` directly fixes shell rc files without
+        // `linuxify repair --check path.linuxify_bin` directly fixes shell rc files without
         // needing full bootstrap. `linuxify init --from-stage 6` would also
         // work but requires stages 0-5 to be complete first.
-        fixCommand: 'linuxify repair paths',
+        fixCommand: 'linuxify repair --check path.linuxify_bin',
         fixDocs: 'https://docs.linuxify.dev/05-bootstrap/bootstrap-design',
         durationMs: Date.now() - start,
       };

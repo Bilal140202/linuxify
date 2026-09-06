@@ -56,7 +56,7 @@ export async function runRun(
     return EXIT_CODES.NOT_FOUND;
   }
 
-  const distroName = ctx.flags.distro ?? state.active_distro ?? install.distro;
+  const distroName = ctx.flags.distro || state.active_distro || install.distro;
   let distroProvider;
   try {
     distroProvider = getDistro(distroName);

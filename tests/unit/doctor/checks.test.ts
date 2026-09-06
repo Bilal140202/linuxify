@@ -349,7 +349,7 @@ describe('doctor/checks — path.linuxify_bin', () => {
     const r = await pathLinuxifyBinCheck.run(makeCtx());
     expect(r.status).toBe('fail');
     expect(r.message).toMatch(/not on PATH/);
-    expect(r.fixCommand).toBe('linuxify repair paths');
+    expect(r.fixCommand).toBe('linuxify repair --check path.linuxify_bin');
   });
 
   it('fails when PATH is empty', async () => {

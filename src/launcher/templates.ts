@@ -129,7 +129,7 @@ export function directTemplate(spec: LauncherSpec, binaryPath: string): string {
     `# Package: ${spec.packageName}`,
     `# Distro: ${spec.distro}`,
     `# Variant: direct`,
-    `exec proot-distro login ${spec.distro} --user linuxify -- ${binaryPath} "$@"`,
+    `exec proot-distro login "${spec.distro}" --user linuxify -- "${binaryPath}" "$@"`,
     ``,
   ].join('\n');
 }

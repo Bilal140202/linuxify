@@ -17,6 +17,7 @@
 //
 // See docs/05-bootstrap/bootstrap-design.md §2 (Stage 2).
 
+import { join } from 'node:path';
 import { logger } from '../../utils/log.js';
 import { exec } from '../../utils/process.js';
 import type { BootstrapContext, StageResult } from '../types.js';
@@ -151,6 +152,24 @@ export async function stage2Rootfs(_ctx: BootstrapContext): Promise<StageResult>
 
     logger.info('stage 2: ubuntu rootfs installed successfully');
 
+    // Write the distro "installed" marker so DistroProvider.isInstalled()
+    // returns true for the bootstrap-installed distro. This fixes AUDIT-1-001:
+    // without this marker, `linuxify run` / `linuxify shell` / `linuxify add`
+    // all report "Distro 'ubuntu' is not installed" after `linuxify init` succeeds.
+    const distroName = _ctx.config.bootstrap?.distro ?? 'ubuntu';
+    const distroDir = join(_ctx.linuxifyHome, 'distros', distroName);
+    try {
+      const { mkdir: mkdirSync, writeFile: writeFileSync } = await import('node:fs/promises');
+      await mkdirSync(distroDir, { recursive: true });
+      await writeFileSync(
+        join(distroDir, 'installed'),
+        JSON.stringify({ name: distroName, installed_at: new Date().toISOString(), source: 'bootstrap-stage-2' }),
+      );
+      logger.info({ distroDir }, 'stage 2: wrote distro installed marker');
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'stage 2: failed to write distro marker (non-fatal)');
+    }
+
     return {
       success: true,
       durationMs: Date.now() - start,
@@ -160,6 +179,7 @@ export async function stage2Rootfs(_ctx: BootstrapContext): Promise<StageResult>
         installOutput: tail(installResult.stdout, 500),
         verified: true,
         containers,
+        markerWritten: true,
       },
     };
   } catch (e) {

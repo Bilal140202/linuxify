@@ -66,16 +66,20 @@ export const distroInstalledCheck: DoctorCheck = {
     if (!active) {
       // Containers exist but none is active — shouldn't happen given
       // getActiveDistro's fallback, but handle it.
+      // Map proot-distro alias to Linuxify name (e.g. archlinux → arch).
+      const { listDistros } = await import('../../distros/index.js');
+      const knownDistros = listDistros().map((d) => d.name);
+      const distroName = installed.find((name) => knownDistros.includes(name)) || installed[0] || 'ubuntu';
       return {
         ...base,
         status: 'fail',
-        message: `Containers found (${installed.join(', ')}) but none is active. Run: linuxify use ubuntu`,
+        message: `Containers found (${installed.join(', ')}) but none is active. Run: linuxify use ${distroName}`,
         detail: {
           installedContainers: installed,
           stateActiveDistro: ctx.state.active_distro,
           source: 'proot-distro list --quiet',
         },
-        fixCommand: `linuxify use ${installed[0]}`,
+        fixCommand: `linuxify use ${distroName}`,
         fixDocs: 'https://docs.linuxify.dev/05-bootstrap/distro-management',
         durationMs: Date.now() - start,
       };

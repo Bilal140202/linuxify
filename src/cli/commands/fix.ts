@@ -199,7 +199,14 @@ async function confirmRepair(
   plan: RepairPlan,
   ctx: CommandContext,
 ): Promise<boolean> {
-  if (ctx.flags.yes) return true;
+  // --yes auto-applies SAFE repairs only. Moderate/risky/destructive
+  // always require explicit confirmation, even with --yes.
+  // This fixes AUDIT-3-001: --yes was bypassing the destructive-risk gate.
+  if (ctx.flags.yes && plan.risk === 'safe') return true;
+  if (ctx.flags.yes && (plan.risk === 'risky' || plan.risk === 'destructive')) {
+    ctx.output.error(`Refusing to auto-apply ${plan.risk} repair with --yes: ${plan.summary}`);
+    return false;
+  }
 
   // In a real implementation, this would prompt the user interactively.
   // For now, we print the plan and ask the user to re-run with --apply.

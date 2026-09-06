@@ -31,7 +31,7 @@ export const builtinPatterns: StderrPattern[] = [
       const interpreterName = interpreterPath.split('/').pop() ?? interpreterPath;
       // Extract the package name if we can (e.g., "proot-distro" from the command).
       const pkg = ctx.packageName ?? extractPackageFromCommand(ctx.command);
-      const baseInterpreter = interpreterName.replace(/\d+.*$/, ''); // "python3.13" → "python3"
+      const baseInterpreter = interpreterName.replace(/\.\d.*$/, ''); // "python3.13" → "python3"
 
       return {
         id: 'bad-interpreter.python-upgrade',
@@ -51,9 +51,11 @@ export const builtinPatterns: StderrPattern[] = [
   {
     id: 'command-not-found',
     name: 'Command not found — package not installed',
-    pattern: /command not found[:\s]+(\S+)/i,
+    // Match both bash format: "bash: <cmd>: command not found"
+    // and zsh format: "zsh: command not found: <cmd>"
+    pattern: /(?:^|:\s)(\S+):\s*command not found$|^command not found:\s+(\S+)/im,
     diagnose: (match, _ctx) => {
-      const cmd = match[1];
+      const cmd = match[1] || match[2];
       return {
         id: 'command-not-found.missing-binary',
         title: `'${cmd}' is not installed`,

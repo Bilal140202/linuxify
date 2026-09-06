@@ -251,7 +251,7 @@ describe('LauncherGenerator', () => {
       expect(content).toContain('#!/data/data/com.termux/files/usr/bin/sh');
       expect(content).toContain('# Variant: direct');
       expect(content).toContain(
-        'exec proot-distro login debian --user linuxify -- /home/linuxify/.local/bin/eslint "$@"',
+        'exec proot-distro login "debian" --user linuxify -- "/home/linuxify/.local/bin/eslint" "$@"',
       );
       // Direct variant does NOT set LINUXIFY_* env vars.
       expect(content).not.toContain('LINUXIFY_PKG=');

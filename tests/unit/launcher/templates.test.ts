@@ -191,7 +191,7 @@ describe('directTemplate', () => {
   it('substitutes distro and binaryPath into the proot-distro login command', () => {
     const out = directTemplate(DIRECT_SPEC, '/home/linuxify/.local/bin/eslint');
     expect(out).toContain(
-      'exec proot-distro login debian --user linuxify -- /home/linuxify/.local/bin/eslint "$@"',
+      'exec proot-distro login "debian" --user linuxify -- "/home/linuxify/.local/bin/eslint" "$@"',
     );
   });
 
@@ -216,7 +216,7 @@ describe('directTemplate', () => {
 
   it('handles binaryPaths with spaces and special characters', () => {
     const out = directTemplate(DIRECT_SPEC, '/home/linuxify/my tools/eslint');
-    expect(out).toContain('/home/linuxify/my tools/eslint "$@"');
+    expect(out).toContain('"/home/linuxify/my tools/eslint" "$@"');
   });
 });
 

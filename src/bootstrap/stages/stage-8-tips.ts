@@ -102,11 +102,11 @@ async function readRuntimesLabel(ctx: BootstrapContext): Promise<string> {
       load?: () => Promise<unknown>;
     }).load?.()) as
       | {
-          installedRuntimes?: Array<{ name: string; version: string }>;
+          installed_runtimes?: Array<{ name: string; version: string }>;
         }
       | undefined;
 
-    const runtimes = state?.installedRuntimes ?? [];
+    const runtimes = state?.installed_runtimes ?? [];
     if (runtimes.length === 0) {
       return 'node LTS, python 3.12';
     }

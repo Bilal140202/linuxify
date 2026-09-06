@@ -9,7 +9,8 @@
  */
 
 import { exec } from '../../utils/process.js';
-import type { DoctorCheck, DoctorResult } from '../types.js';
+import { getActiveDistro } from '../../utils/distros.js';
+import type { DoctorCheck, DoctorContext, DoctorResult } from '../types.js';
 
 export const npmCacheWritableCheck: DoctorCheck = {
   id: 'npm.cache-writable',
@@ -20,10 +21,10 @@ export const npmCacheWritableCheck: DoctorCheck = {
     what: 'Verifies that npm cache operations work inside proot (no rename ENOENT errors).',
     why: 'Inside proot, /tmp and ~/.npm may be on different mount points. npm\'s atomic rename between them fails with "syscall rename ENOENT". This is the #1 npm issue inside proot.',
     consequence: '`npm install -g <package>` fails with EPERM or ENOENT. No packages can be installed.',
-    fix: 'npm config set cache $HOME/.npm && mkdir -p $HOME/.tmp && export TMPDIR=$HOME/.tmp',
+    fix: 'proot-distro login <distro> --user linuxify -- bash -c "npm config set cache $HOME/.npm && mkdir -p $HOME/.tmp && echo \'export TMPDIR=$HOME/.tmp\' >> ~/.bashrc"',
   },
 
-  async run(): Promise<DoctorResult> {
+  async run(ctx: DoctorContext): Promise<DoctorResult> {
     const start = Date.now();
     const base: Pick<DoctorResult, 'id' | 'name' | 'category'> = {
       id: 'npm.cache-writable',
@@ -31,10 +32,23 @@ export const npmCacheWritableCheck: DoctorCheck = {
       category: 'runtime',
     };
 
+    // Use getActiveDistro instead of hardcoding 'ubuntu'.
+    const active = await getActiveDistro(ctx.state.active_distro);
+    if (!active) {
+      return {
+        ...base,
+        status: 'skip',
+        message: 'No active distro; skipping npm cache check.',
+        detail: { source: 'getActiveDistro' },
+        durationMs: Date.now() - start,
+      };
+    }
+
     try {
-      // Test if npm cache rename works by doing a dry-run install.
-      const r = await exec('proot-distro', ['login', 'ubuntu', '--user', 'linuxify', '--', 'bash', '-c',
-        'npm config get cache 2>/dev/null && echo "---" && test -d $HOME/.npm && echo "cache_exists" || echo "no_cache_dir"'],
+      const r = await exec(
+        'proot-distro',
+        ['login', active, '--user', 'linuxify', '--', 'bash', '-c',
+         'npm config get cache 2>/dev/null && echo "---" && echo "${TMPDIR:-}"'],
         { timeoutMs: 15000, env: { TERM: 'dumb' } },
       );
 
@@ -42,39 +56,37 @@ export const npmCacheWritableCheck: DoctorCheck = {
         return {
           ...base,
           status: 'warn',
-          message: 'Could not check npm cache inside Ubuntu (proot-distro login failed).',
-          detail: { exitCode: r.exitCode },
-          fixCommand: 'proot-distro login ubuntu --user linuxify -- npm config set cache $HOME/.npm',
+          message: `Could not check npm cache inside ${active} (proot-distro login failed).`,
+          detail: { exitCode: r.exitCode, distro: active },
+          fixCommand: `proot-distro login ${active} --user linuxify -- npm config set cache $HOME/.npm`,
           durationMs: Date.now() - start,
         };
       }
 
-      const output = r.stdout.trim();
-      const cachePath = output.split('---')[0]?.trim();
-      const hasCacheDir = output.includes('cache_exists');
+      const parts = r.stdout.split('---');
+      const cachePath = parts[0]?.trim();
+      const tmpdir = parts[1]?.trim() || '';
 
-      // Check if TMPDIR is set to a home-relative path (not /tmp).
-      const tmpdirCheck = await exec('proot-distro', ['login', 'ubuntu', '--user', 'linuxify', '--', 'echo', '$TMPDIR'], { timeoutMs: 10000 });
-      const tmpdir = tmpdirCheck.stdout.trim();
-      const tmpdirOk = tmpdir === '' || tmpdir.startsWith('/home/');
+      // TMPDIR must be set to a home-relative path to avoid the rename bug.
+      // Empty TMPDIR means /tmp is in use, which IS the bug condition.
+      const tmpdirOk = tmpdir.startsWith('/home/');
 
-      if (cachePath && cachePath.startsWith('/home/') && hasCacheDir && tmpdirOk) {
+      if (cachePath && cachePath.startsWith('/home/') && tmpdirOk) {
         return {
           ...base,
           status: 'ok',
-          message: `npm cache is at ${cachePath}, TMPDIR is ${tmpdir || '(default)'}.`,
-          detail: { cachePath, tmpdir, hasCacheDir },
+          message: `npm cache at ${cachePath}, TMPDIR=${tmpdir}.`,
+          detail: { cachePath, tmpdir, distro: active },
           durationMs: Date.now() - start,
         };
       }
 
-      // Cache is misconfigured — suggest the fix.
       return {
         ...base,
         status: 'warn',
-        message: `npm cache may cause rename errors inside proot. Cache: ${cachePath}, TMPDIR: ${tmpdir || '/tmp'}. Run the fix below.`,
-        detail: { cachePath, tmpdir, hasCacheDir, issue: 'proot rename mount-point mismatch' },
-        fixCommand: 'proot-distro login ubuntu --user linuxify -- bash -c "npm config set cache $HOME/.npm && mkdir -p $HOME/.tmp && echo \'export TMPDIR=$HOME/.tmp\' >> ~/.bashrc"',
+        message: `npm cache may cause rename errors inside proot. Cache: ${cachePath}, TMPDIR: ${tmpdir || '/tmp (default — this is the bug!)'}.`,
+        detail: { cachePath, tmpdir, distro: active, issue: 'proot rename mount-point mismatch' },
+        fixCommand: `proot-distro login ${active} --user linuxify -- bash -c "npm config set cache \\$HOME/.npm && mkdir -p \\$HOME/.tmp && grep -q TMPDIR ~/.bashrc || echo 'export TMPDIR=\\$HOME/.tmp' >> ~/.bashrc"`,
         durationMs: Date.now() - start,
       };
     } catch (err) {
@@ -82,7 +94,7 @@ export const npmCacheWritableCheck: DoctorCheck = {
         ...base,
         status: 'skip',
         message: `npm cache check skipped: ${(err as Error).message}`,
-        detail: { error: (err as Error).message },
+        detail: { error: (err as Error).message, distro: active },
         durationMs: Date.now() - start,
       };
     }

@@ -33,6 +33,7 @@ import { registerDoctorCommand } from './doctor.js';
 import { registerEnvCommand } from './env.js';
 import { registerFixCommand } from './fix.js';
 import { registerGcCommand } from './gc.js';
+import { registerHostCommand } from './host.js';
 import { registerInfoCommand } from './info.js';
 import { registerInitCommand } from './init.js';
 import { registerInstallCommand } from './install.js';
@@ -138,6 +139,9 @@ export function registerAllCommands(
   registerTelemetryCommand(program, getCtx, setExit);
   registerSnapshotCommand(program, getCtx, setExit);
   registerGcCommand(program, getCtx, setExit);
+
+  // Hosting subsystem.
+  registerHostCommand(program, getCtx, setExit);
 
   // Shell completions.
   registerCompletionsCommand(program, getCtx, setExit);

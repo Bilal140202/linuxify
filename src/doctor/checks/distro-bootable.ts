@@ -74,7 +74,12 @@ export const distroBootableCheck: DoctorCheck = {
       // try auto-creating it (self-healing). This fixes the case where
       // Ubuntu was installed by proot-distro but Stage 3 (which creates
       // the linuxify user) was skipped or its effects were lost.
-      if (result.exitCode !== 0 && /no user.*linuxify.*defined/i.test(result.stderr)) {
+      //
+      // AUDIT-2-008: Broadened the regex to match the various phrasings
+      // proot-distro emits across versions (e.g. "no user 'linuxify'
+      // defined", "user 'linuxify' not found", "couldn't find user
+      // 'linuxify'").
+      if (result.exitCode !== 0 && /linuxify.*(not found|not exist|not defined|couldn't find|no user)/i.test(result.stderr)) {
         logger.info('distro.bootable: linuxify user missing — auto-creating (self-healing)');
         const createUserResult = await exec(
           'proot-distro',
@@ -135,7 +140,7 @@ export const distroBootableCheck: DoctorCheck = {
     return {
       ...base,
       status: 'ok',
-      message: `Ubuntu booted successfully.`,
+      message: `${active} booted successfully.`,
       detail: { activeDistro: active, source: 'getActiveDistro' },
       durationMs: Date.now() - start,
     };

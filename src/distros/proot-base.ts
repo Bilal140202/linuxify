@@ -349,10 +349,14 @@ export abstract class ProotDistroBase implements DistroProvider {
       cwd: opts.cwd,
     });
 
+    // AUDIT-2-034: Do NOT pass `cwd: opts.cwd` to execa here. `opts.cwd`
+    // is a proot-INTERNAL path (e.g. `/home/linuxify`) that does not exist
+    // on the host, so execa's `cwd` (which sets the HOST-side cwd of the
+    // proot-distro process) would fail with ENOENT. The proot-side cwd
+    // is already handled by the `--cwd` flag in `buildLoginArgs`.
     const result = await exec('proot-distro', loginArgs, {
       env: { TERM: 'dumb', ...(opts.env ?? {}) },
       timeoutMs: opts.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS,
-      cwd: opts.cwd,
     });
 
     // Narrow to the public ExecResult (drop failed/timedOut/command).

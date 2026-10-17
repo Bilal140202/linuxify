@@ -184,7 +184,7 @@ export const PatchDefinitionSchema = z
     /** Replacement string (backreferences `$1`/`$2` work for `regex`). */
     replace: z.string(),
     /** Shell command to run after the patch; non-zero exit rolls it back. */
-    verify: z.string(),
+    verify: z.string().min(1),
     /** Whether the patcher should record a reverse edit for rollback. */
     rollback: z.boolean(),
     /** Opaque condition string the patcher evaluates before applying. */

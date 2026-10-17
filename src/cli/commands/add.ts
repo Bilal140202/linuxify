@@ -155,12 +155,22 @@ export const registerAddCommand: RegisterCommandFn = (program, getCtx, setExit):
   program
     .command('add <package>')
     .description('Install a CLI tool into the active distro.')
-    .option('--version <v>', 'Pin a specific version (default: latest).')
     .option('--runtime <name>', 'Override the runtime declared by the package.')
     .option('--no-patch', 'Install without applying patches.')
     .option('--force', 'Reinstall over an existing install.')
-    .option('--ignore-compat', 'Bypass the min_linuxify compat check.')
     .action(async (packageName: string, opts: Record<string, unknown>) => {
+      // AUDIT-1-006: `--version <v>` and `--ignore-compat` were previously
+      // declared here but never read — they gave users the false impression
+      // that version pinning and compat bypass were wired up. They have been
+      // removed; Commander now rejects them as unknown options so the user
+      // gets a clear error instead of silent acceptance. Version pinning
+      // lands in v1.1 alongside the package manager's resolver refactor;
+      // compat bypass is deferred until the compat-db subsystem ships.
+      if (opts.version !== undefined || opts.ignoreCompat !== undefined) {
+        logger.warn(
+          'add: --version and --ignore-compat are no longer accepted (planned for v1.1); ignoring',
+        );
+      }
       const ctx = await getCtx();
       const code = await runAdd(opts, ctx, packageName);
       setExit(code);

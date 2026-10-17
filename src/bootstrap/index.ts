@@ -267,6 +267,24 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<BootstrapR
     await clearAllStageMarkers(ctx.markersDir);
   }
 
+  // AUDIT-1-007: `--offline` and `--bundle` are declared on the bootstrap
+  // context but are not yet honoured by stages 1/2/4 (which still hit the
+  // network to install host deps, the Ubuntu rootfs, and the runtimes).
+  // Full offline mode lands in v1.1 alongside the bundle-extract pipeline.
+  // Warn up-front so the user is not surprised when `pkg install` and
+  // `proot-distro install` still make network calls under `--offline`.
+  if (ctx.offline) {
+    logger.warn(
+      'bootstrap: --offline was passed but stages 1, 2, and 4 still hit the network (full offline mode lands in v1.1); if your host is air-gapped, expect those stages to fail',
+    );
+  }
+  if (ctx.bundlePath) {
+    logger.warn(
+      { bundlePath: ctx.bundlePath },
+      'bootstrap: --bundle was passed but bundle extraction is not yet implemented (lands in v1.1); the bundle path is being ignored',
+    );
+  }
+
   for (const stage of stages) {
     // --from-stage: skip stages before the requested id.
     if (ctx.fromStage !== undefined && stage.id < ctx.fromStage) {

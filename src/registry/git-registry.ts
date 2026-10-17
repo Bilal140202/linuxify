@@ -354,17 +354,46 @@ export class GitRegistryClient implements RegistryClient {
     // Try registry/packages/ first, then packages/ (for standalone repos or test fixtures).
     const primaryDir = path.join(this.localPath, PACKAGES_SUBDIR);
     const fallbackDir = path.join(this.localPath, PACKAGES_SUBDIR_FALLBACK);
-    const packagesDir = (await exists(primaryDir)) ? primaryDir : fallbackDir;
+
+    // AUDIT-2-027: If the primary dir EXISTS but is empty (no .yml/.yaml
+    // files), fall back to the secondary dir. Previously, an empty
+    // primary dir short-circuited the fallback and `listPackages()`/`search()`
+    // returned `[]` even when the fallback dir had packages (e.g. standalone
+    // registry repos where the clone root contains `packages/` but
+    // `registry/packages/` exists as an empty stub).
+    const primaryExists = await exists(primaryDir);
+    // `packagesDir` is initialized to `undefined` and assigned inside the
+    // try block BEFORE any `readdir` call, so the catch block can read it
+    // safely. TypeScript's narrowing can't prove that across try/catch, so
+    // we use `string | undefined` and a `?? primaryDir` fallback in the
+    // error path.
+    let packagesDir: string | undefined;
     let files: string[];
     try {
-      files = await readdir(packagesDir);
+      if (primaryExists) {
+        packagesDir = primaryDir;
+        const primaryFiles = (await readdir(primaryDir)).filter(
+          (f) => f.endsWith('.yml') || f.endsWith('.yaml'),
+        );
+        if (primaryFiles.length > 0) {
+          files = primaryFiles;
+        } else {
+          // Primary dir exists but has no package YAMLs — try the fallback.
+          packagesDir = fallbackDir;
+          files = await readdir(fallbackDir);
+        }
+      } else {
+        packagesDir = fallbackDir;
+        files = await readdir(fallbackDir);
+      }
     } catch (err) {
+      const failedDir = packagesDir ?? primaryDir;
       throw new RegistryError(
-        `Failed to read packages directory: ${packagesDir}: ${(err as Error).message}`,
+        `Failed to read packages directory: ${failedDir}: ${(err as Error).message}`,
         {
           code: 'E_REGISTRY_CORRUPT',
           cause: err,
-          details: { path: packagesDir },
+          details: { path: failedDir },
           fixCommand: 'linuxify update',
         },
       );

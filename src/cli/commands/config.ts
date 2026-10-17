@@ -213,15 +213,32 @@ export async function runConfig(
  * Register the `config` command.
  */
 export const registerConfigCommand: RegisterCommandFn = (program, getCtx, setExit): void => {
+  // AUDIT-1-013: `--effective` and `--global` were previously declared here
+  // but never read — they gave users the false impression that they could
+  // toggle compiled-default inclusion or force writes to the user config.
+  // Removed; Commander now rejects them as unknown options. The `--show`
+  // path already prints the effective config (config.toml + defaults +
+  // env overlay), and writes always target the resolved config path
+  // (`LINUXIFY_CONFIG_PATH` or `~/.linuxify/config.toml`).
   const cmd = program
     .command('config [key] [value]')
     .description('Read or write keys in ~/.linuxify/config.toml.')
     .option('--show', 'Print the entire effective config.')
     .option('--unset <key>', 'Delete a key.')
-    .option('--effective', 'Include compiled defaults in --show output.')
-    .option('--global', 'Force write to the user config even when a project-local file exists.')
     .allowUnknownOption(true)
     .action(async (key: string | undefined, value: string | undefined, opts: Record<string, unknown>) => {
+      if (opts.effective !== undefined) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          'linuxify config: --effective is no longer accepted (was never honoured); --show already prints the effective config',
+        );
+      }
+      if (opts.global !== undefined) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          'linuxify config: --global is no longer accepted (was never honoured); writes always target the resolved config path',
+        );
+      }
       const ctx = await getCtx();
       const args: string[] = [];
       if (key !== undefined) args.push(key);

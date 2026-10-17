@@ -43,7 +43,7 @@ export const runtimePythonCheck: DoctorCheck = {
   category: 'runtime',
   profile: ['standard', 'deep', 'post-install', 'ci'],
   explain: {
-    what: 'Verifies that Python 3.10+ is installed inside the active distro.',
+    what: 'Verifies the host Python 3.12+ (used to run the Linuxify CLI itself). For proot-side runtimes, use `linuxify runtimes list`.',
     why: 'Some CLIs (Aider, Claude Code) are Python applications. They need Python to run. Linuxify installs Python 3.12 during bootstrap stage 4.',
     consequence: "Python-based CLIs won't start. `linuxify add aider` will fail because `pip install aider-chat` requires Python.",
     fix: 'linuxify runtimes install python 3.12',

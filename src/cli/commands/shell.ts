@@ -144,13 +144,18 @@ export async function runShell(
  * Register the `shell` command.
  */
 export const registerShellCommand: RegisterCommandFn = (program, getCtx, setExit): void => {
+  // AUDIT-1-017: `--no-bind-home` was previously declared here but never
+  // read — it gave users the false impression that they could disable the
+  // host $HOME bind-mount inside the proot. Removed; Commander now rejects
+  // it as an unknown option. (The shell command always binds $HOME; a
+  // future `--no-bind-home` implementation is deferred until the proot
+  // login builder grows a flag for it.)
   program
     .command('shell')
     .description('Open an interactive shell inside the active distro.')
     .option('--distro <name>', 'Override the active distro for this shell.')
     .option('--as <user>', 'Log in as this user (default: linuxify).')
     .option('--workdir <path>', 'Working directory at shell start.')
-    .option('--no-bind-home', 'Do not bind-mount the host $HOME.')
     .action(async (opts: Record<string, unknown>) => {
       const ctx = await getCtx();
       const code = await runShell(opts, ctx);

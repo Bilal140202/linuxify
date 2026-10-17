@@ -281,8 +281,13 @@ export class RepairEngine {
       // If a fix failed, skip downstream fixes that depend on it.
       // This prevents the cascade of "stage 6 failed because stage 0-5
       // weren't done" errors the user reported.
+      //
+      // AUDIT-3-006: Pass `results.length - 1` (the index of the failed
+      // fix in `orderedFiltered`), NOT `results.length`. After the push
+      // above, `results.length` is one greater than the failed fix's
+      // index, so the previous call skipped one too many downstream fixes.
       if (!fixResult.success && !opts.dryRun) {
-        const skipped = skipDependentFixes(r.id, orderedFiltered, results.length);
+        const skipped = skipDependentFixes(r.id, orderedFiltered, results.length - 1);
         if (skipped.length > 0) {
           logger.info('repair: skipping dependent fixes after failure', {
             failedCheck: r.id,

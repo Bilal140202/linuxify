@@ -151,8 +151,16 @@ export const registerUpgradeCommand: RegisterCommandFn = (program, getCtx, setEx
     .option('--all', 'Upgrade every installed package.')
     .option('--dry-run', 'Print what would be upgraded without applying anything.')
     .option('--no-patch', 'Skip patch application during upgrade.')
-    .option('--to <version>', 'Pin the target version.')
+    // AUDIT-1-012: `--to <version>` was previously declared but never read
+    // — it gave users the false impression that they could pin an upgrade
+    // target. Removed; Commander now rejects it as an unknown option. The
+    // registry always upgrades to the version recorded in the package YAML.
     .action(async (packageName: string | undefined, opts: Record<string, unknown>) => {
+      if (opts.to !== undefined) {
+        logger.warn(
+          'upgrade: --to is no longer accepted (was never honoured); upgrade targets the registry version',
+        );
+      }
       const ctx = await getCtx();
       const code = await runUpgrade(opts, ctx, packageName);
       setExit(code);

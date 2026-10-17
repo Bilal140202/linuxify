@@ -44,7 +44,7 @@ export const runtimeGitCheck: DoctorCheck = {
   category: 'runtime',
   profile: ['standard', 'deep', 'post-install', 'ci'],
   explain: {
-    what: 'Verifies that Git is installed inside the active distro.',
+    what: 'Verifies the host Git (used to run the Linuxify CLI itself). For proot-side runtimes, use `linuxify runtimes list`.',
     why: "Git is needed by many CLIs for repository operations (Aider reads git history, Cline can commit changes). It's installed during bootstrap stage 3 as part of the base packages.",
     consequence: "CLIs that interact with git repositories won't work properly. Aider won't be able to track file changes.",
     fix: 'linuxify init',

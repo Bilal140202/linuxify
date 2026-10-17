@@ -76,6 +76,13 @@ export async function runSearch(
  * Register the `search` command.
  */
 export const registerSearchCommand: RegisterCommandFn = (program, getCtx, setExit): void => {
+  // AUDIT-1-015: `--offline` was previously declared here but never read
+  // — the global `--offline` flag (registered on the top-level program in
+  // `flags.ts`) already covers the offline case. The local declaration was
+  // a duplicate that gave users the false impression that `linuxify search`
+  // had its own offline mode distinct from the global one. Removed;
+  // Commander no longer accepts `linuxify search --offline` (the global
+  // `linuxify --offline search <query>` form still works).
   program
     .command('search <query>')
     .description('Search the registry for packages matching the query.')
@@ -83,7 +90,6 @@ export const registerSearchCommand: RegisterCommandFn = (program, getCtx, setExi
     .option('--category <c>', 'Filter by category (ai, dev, sec, …).')
     .option('--runtime <r>', 'Filter by runtime (node, python, …).')
     .option('--limit <n>', 'Maximum results to return (default 20).')
-    .option('--offline', 'Search the local index only.')
     .action(async (query: string, opts: Record<string, unknown>) => {
       const ctx = await getCtx();
       const code = await runSearch(opts, ctx, query);

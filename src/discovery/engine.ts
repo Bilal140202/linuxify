@@ -5,7 +5,15 @@
  */
 
 import { logger } from '../utils/log.js';
-import { exec, isTermux, isAndroid, getArch, getAndroidVersion, getTermuxPrefix } from '../utils/process.js';
+import {
+  exec,
+  isTermux,
+  isAndroid,
+  getArch,
+  getAndroidVersion,
+  getTermuxPrefix,
+  getLinuxifyHome,
+} from '../utils/process.js';
 import { getInstalledContainers } from '../utils/distros.js';
 import { exists } from '../utils/fs.js';
 import { join } from 'node:path';
@@ -107,7 +115,11 @@ export async function discoverEnvironment(): Promise<DiscoveryResult> {
   }
 
   // ── Linuxify home ───────────────────────────────────────────────────
-  const linuxifyHome = `${process.env.HOME ?? '/tmp'}/.linuxify`;
+  // AUDIT-3-041: Use the shared `getLinuxifyHome()` helper (which honors
+  // the `LINUXIFY_HOME` override and the `USERPROFILE` fallback on Windows)
+  // instead of reading `process.env.HOME` directly. This keeps discovery
+  // in sync with the rest of the CLI (state, registry, logs).
+  const linuxifyHome = getLinuxifyHome();
   const linuxifyHomeExists = await exists(linuxifyHome);
   const stateJsonExists = await exists(join(linuxifyHome, 'state.json'));
   const linuxifyInitialized = linuxifyHomeExists && stateJsonExists;
@@ -216,7 +228,11 @@ async function listProotDistroContainers(_warnings: string[]): Promise<string[]>
  * Scan a single proot-distro container for runtimes and Linuxify state.
  */
 async function scanDistro(name: string, warnings: string[]): Promise<DiscoveredDistro> {
-  const rootfsPath = `${process.env.PREFIX ?? '/data/data/com.termux/files/usr'}/var/lib/proot-distro/installed-rootfs/${name}`;
+  // AUDIT-3-041: Use the shared `getTermuxPrefix()` helper instead of
+  // reading `process.env.PREFIX` directly — this honors the canonical
+  // Termux path fallback when `PREFIX` is unset (e.g. when discovery is
+  // invoked outside a Termux shell but still points at a Termux rootfs).
+  const rootfsPath = `${getTermuxPrefix()}/var/lib/proot-distro/installed-rootfs/${name}`;
 
   // Check if the distro is bootable (proot-distro login -- true exits 0)
   let bootable = false;

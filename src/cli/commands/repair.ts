@@ -34,8 +34,9 @@
  *  - `--yes`: skip the confirmation prompt (required for CI).
  *  - `--check <id>`: only repair the named check.
  *  - `--dry-run`: print the plan without applying anything.
- *  - `--reset`: wipe state.json and re-derive it from the filesystem.
- *  - `--from-backup <path>`: restore from a known-good backup.
+ *
+ * AUDIT-3-004: the `--reset` and `--from-backup <path>` flags were previously
+ * declared but never read; they have been removed to avoid misleading users.
  *
  * @packageDocumentation
  */
@@ -362,6 +363,15 @@ export async function runRepair(
   let currentPhase = '';
   let phaseIndex = 0;
 
+  // AUDIT-3-005: Track every fixCommand we have already executed so the
+  // re-diagnose loop does not re-run a command from a phase that already
+  // completed (succeeded or failed). Without this, a phase whose fixCommand
+  // exited 0 but whose underlying check is *still* failing (e.g. the fix is
+  // partial) would be re-included by buildRepairPlan(remainingFailures) and
+  // re-executed on the next iteration — an infinite loop of "fixed but not
+  // resolved" phases.
+  const executedFixCommands = new Set<string>();
+
   while (plan.length > 0 && phaseIndex < plan.length) {
     const phase = plan[phaseIndex];
     if (phase.name !== currentPhase) {
@@ -374,6 +384,10 @@ export async function runRepair(
     for (const step of phase.steps) {
       out.info(`  Running: ${step.command}`);
       sessionLog.log(`    → ${step.command}`);
+      // Record the command as executed BEFORE running it so that even a
+      // failing command is not retried by the re-diagnose loop on the next
+      // iteration.
+      executedFixCommands.add(step.command);
       const result = await runFixCommand(step.command);
       if (result.exitCode === 0) {
         out.success(`  ✓ Done`);
@@ -415,7 +429,12 @@ export async function runRepair(
         doctorCtx,
       );
       const remainingFailures = recheck.results.filter(
-        (r) => (r.status === 'fail' || r.status === 'missing') && r.fixCommand,
+        (r) =>
+          (r.status === 'fail' || r.status === 'missing') &&
+          r.fixCommand &&
+          // Skip fixCommands we have already executed in a previous phase
+          // (AUDIT-3-005).
+          !executedFixCommands.has(r.fixCommand),
       );
       const newPlan = buildRepairPlan(remainingFailures);
 
@@ -479,8 +498,6 @@ export const registerRepairCommand: RegisterCommandFn = (program, getCtx, setExi
     .option('--yes', 'Skip the confirmation prompt.')
     .option('--check <id>', 'Only run repairs for the named check.')
     .option('--dry-run', 'Print the repair plan without applying anything.')
-    .option('--reset', 'Wipe state.json and re-derive it from the filesystem (last resort).')
-    .option('--from-backup <path>', 'Restore from a known-good backup.')
     .action(async (opts: Record<string, unknown>) => {
       const ctx = await getCtx();
       const code = await runRepair(opts, ctx);

@@ -3,29 +3,29 @@
 // Stage 7 — Verification.
 //
 // Runs the Linuxify doctor engine in-process with the `minimal` profile and
-// verifies that every "critical" check passes. Optional checks (e.g. `redis`
-// for `aider-memory`) do not block Stage 7. If a critical check fails, the
+// verifies that every check passes (status `ok`/`skip`). Warnings do not
+// block Stage 7; a `fail` or `missing` result does. If a check fails, the
 // stage returns `success: false` with the failing check's name and message,
 // and the orchestrator writes `stage-7.failed` and aborts the pipeline.
 //
 // See docs/05-bootstrap/bootstrap-design.md §2 (Stage 7) and
 // docs/07-doctor/doctor-engine.md for the doctor engine's API.
 //
-// Defensive design: the doctor subsystem (built by a parallel agent) may not
-// be importable yet at the time Stage 7 is first exercised. We attempt a
-// dynamic import; if the import fails, we fall back to a minimal inline
-// verification (proot-distro list, file existence, runtime exec) so that
-// Stage 7 still provides value during early integration.
+// Defensive design: if the doctor engine throws unexpectedly, Stage 7 falls
+// back to an inline verification (proot-distro list, file existence, runtime
+// exec) so the stage still provides value if the doctor subsystem regresses.
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { createDoctorEngine } from '../../doctor/index.js';
 import { exists, readFile } from '../../utils/fs.js';
 import { logger } from '../../utils/log.js';
 import { exec } from '../../utils/process.js';
+import type { State } from '../../state/index.js';
 import type { BootstrapContext, StageResult } from '../types.js';
 
-/** Hard timeout for the doctor invocation. */
+/** Hard timeout for the doctor invocation (per check). */
 const DOCTOR_TIMEOUT_MS = 30_000;
 
 /** Hard timeout for each inline verification exec. */
@@ -34,13 +34,12 @@ const INLINE_TIMEOUT_MS = 10_000;
 /**
  * Bootstrap Stage 7: verification.
  *
- * Attempts to invoke the doctor subsystem with `profile: 'minimal'`. If the
- * doctor module is unavailable (parallel agent has not finished writing it),
- * falls back to an inline verification that checks:
- *  - `proot-distro list` reports the `ubuntu` distro as installed.
- *  - `~/.linuxify/bin/`, `config.toml`, `state.json` all exist.
- *  - The PATH block is present in `~/.bashrc`.
- *  - `node --version` and `python3 --version` execute inside the proot.
+ * Invokes the in-process {@link DoctorEngine} with `profile: 'minimal'`,
+ * propagating the bootstrap context's `Config` and a freshly-loaded `State`.
+ * Treats any check with `status: 'fail'` or `'missing'` as a Stage 7
+ * failure (warnings do not block; `skip`/`ok` pass). If the doctor engine
+ * throws unexpectedly, falls back to {@link runInlineVerification} so the
+ * stage still provides value.
  *
  * @param ctx - Bootstrap context.
  */
@@ -54,8 +53,9 @@ export async function stage7Verify(ctx: BootstrapContext): Promise<StageResult> 
       return doctorResult.stageResult;
     }
 
-    // Fallback: inline verification.
-    logger.info('stage 7: doctor module unavailable, running inline verification');
+    // Fallback: inline verification (only reached if the doctor engine
+    // threw during construction or context assembly).
+    logger.info('stage 7: doctor engine unavailable, running inline verification');
     return await runInlineVerification(ctx, start);
   } catch (e) {
     return {
@@ -68,61 +68,60 @@ export async function stage7Verify(ctx: BootstrapContext): Promise<StageResult> 
 }
 
 /**
- * Attempt to dynamically import the doctor subsystem and run it with the
- * `minimal` profile. Returns `{ usedDoctor: true, stageResult }` on success
- * or `{ usedDoctor: false }` if the doctor module is unavailable.
+ * Run the in-process {@link DoctorEngine} with the `minimal` profile.
  *
- * The import path is held in a variable so TypeScript does not try to
- * resolve it at compile time — the doctor module is built by a parallel
- * agent and may not exist when Stage 7 is first exercised.
+ * Constructs a `DoctorContext` from the bootstrap context's `config` and a
+ * freshly-loaded `state` (Stage 5 has written `state.json` by this point in
+ * the pipeline, so `stateStore.load()` returns the persisted state). Returns
+ * `{ usedDoctor: true, stageResult }` on any outcome — including engine
+ * errors, which are converted into a `success: false` StageResult so the
+ * pipeline aborts with a useful message rather than a generic throw.
+ *
+ * The only path that returns `{ usedDoctor: false }` is a failure to load
+ * state, in which case {@link stage7Verify} falls back to inline
+ * verification so the stage still produces a result.
  */
 async function tryRunDoctor(
-  _ctx: BootstrapContext,
+  ctx: BootstrapContext,
 ): Promise<{ usedDoctor: true; stageResult: StageResult } | { usedDoctor: false }> {
-  // The path is intentionally indirect: TS resolves string-literal dynamic
-  // imports at compile time, which would fail with TS2307 if the doctor
-  // module does not yet exist. By using a variable we defer resolution to
-  // runtime, where vitest/Node will simply throw (caught below).
-  const doctorModulePath = '../doctor/index.js';
-  let doctorModule: { runDoctor?: (opts: unknown) => Promise<unknown> };
-  try {
-    doctorModule = (await import(/* @vite-ignore */ doctorModulePath)) as {
-      runDoctor?: (opts: unknown) => Promise<unknown>;
-    };
-  } catch (e) {
-    logger.debug('stage 7: doctor module not importable', { error: (e as Error).message });
-    return { usedDoctor: false };
-  }
-
-  const runDoctor = doctorModule.runDoctor;
-  if (typeof runDoctor !== 'function') {
-    logger.debug('stage 7: doctor module has no runDoctor export');
-    return { usedDoctor: false };
-  }
-
   const start = Date.now();
+
+  // Load state fresh for this doctor run. Stage 5 has written state.json by
+  // now, so this returns the persisted state (or `defaultState()` if the
+  // file is somehow still missing — that case still produces a valid
+  // DoctorContext, so we let the doctor itself report the missing state).
+  let state: State;
   try {
-    const result = (await runDoctor({ profile: 'minimal', timeoutMs: DOCTOR_TIMEOUT_MS })) as {
-      ok?: boolean;
-      exitCode?: number;
-      checks?: Array<{ id: string; severity?: 'critical' | 'optional' | string; status?: string; message?: string }>;
-    };
+    state = await ctx.stateStore.load();
+  } catch (e) {
+    logger.debug('stage 7: state load failed for doctor run', { error: (e as Error).message });
+    return { usedDoctor: false };
+  }
 
-    const checks = result.checks ?? [];
-    const critical = checks.filter((c) => c.severity === 'critical');
-    const failingCritical = critical.filter((c) => c.status !== 'pass' && c.status !== 'ok');
+  try {
+    const engine = createDoctorEngine();
+    const report = await engine.run(
+      { profile: 'minimal', timeoutMs: DOCTOR_TIMEOUT_MS },
+      { config: ctx.config, state },
+    );
 
-    if (failingCritical.length > 0) {
+    // Failures and missing checks block Stage 7. Warnings and skips do not.
+    const failing = report.results.filter(
+      (r) => r.status === 'fail' || r.status === 'missing',
+    );
+
+    if (failing.length > 0) {
+      const first = failing[0]!;
       return {
         usedDoctor: true,
         stageResult: {
           success: false,
           durationMs: Date.now() - start,
-          error: `Critical doctor check failed: ${failingCritical[0]?.id ?? 'unknown'} — ${failingCritical[0]?.message ?? ''}`,
+          error: `Doctor check failed: ${first.id} — ${first.message}`,
           details: {
-            failingChecks: failingCritical,
-            allChecks: checks,
-            exitCode: result.exitCode,
+            failingChecks: failing.map((r) => ({ id: r.id, status: r.status, message: r.message })),
+            allChecks: report.results,
+            summary: report.summary,
           },
         },
       };
@@ -134,13 +133,16 @@ async function tryRunDoctor(
         success: true,
         durationMs: Date.now() - start,
         details: {
-          ok: result.ok ?? true,
-          checkCount: checks.length,
-          criticalCount: critical.length,
+          ok: report.summary.fail === 0 && report.summary.missing === 0,
+          checkCount: report.results.length,
+          summary: report.summary,
         },
       },
     };
   } catch (e) {
+    // The doctor engine contract is "never throws" — a thrown error here is
+    // a real bug. Surface it as a stage failure rather than a generic throw
+    // so the orchestrator's marker writer can record `stage-7.failed`.
     return {
       usedDoctor: true,
       stageResult: {

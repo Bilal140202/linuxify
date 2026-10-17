@@ -110,13 +110,24 @@ export async function runInfo(
  * Register the `info` command.
  */
 export const registerInfoCommand: RegisterCommandFn = (program, getCtx, setExit): void => {
+  // AUDIT-1-014: `--versions` and `--changelog` were previously declared here
+  // but never read — they gave users the false impression that the info
+  // command could list all known versions or print a changelog. Removed;
+  // Commander now rejects them as unknown options. The `info` command
+  // prints only the resolved package definition and install status (the
+  // version listing + changelog features are deferred to v1.1 alongside
+  // the package-registry history endpoint).
   program
     .command('info <package>')
     .description('Print resolved package details and install status.')
     .option('--json', 'Emit a linuxify.v1 JSON document.')
-    .option('--versions', 'List all known versions (v1.1).')
-    .option('--changelog', 'Print the recent changelog (v1.1).')
     .action(async (packageName: string, opts: Record<string, unknown>) => {
+      if (opts.versions !== undefined || opts.changelog !== undefined) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          'linuxify info: --versions and --changelog are no longer accepted (planned for v1.1); ignoring',
+        );
+      }
       const ctx = await getCtx();
       const code = await runInfo(opts, ctx, packageName);
       setExit(code);

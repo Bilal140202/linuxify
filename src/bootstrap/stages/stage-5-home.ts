@@ -15,7 +15,7 @@ import { join } from 'node:path';
 
 import { defaultState } from '../../state/index.js';
 import type { State } from '../../state/index.js';
-import { ensureDir, exists, writeFile } from '../../utils/fs.js';
+import { ensureDir, exists, rmrf, writeFile } from '../../utils/fs.js';
 import { logger } from '../../utils/log.js';
 import type { BootstrapContext, StageResult } from '../types.js';
 
@@ -149,23 +149,50 @@ export async function stage5Home(ctx: BootstrapContext): Promise<StageResult> {
     }
 
     // 3. state.json — delegate to StateStore. We check existence first so
-    // we don't clobber an existing state file (idempotency). If the file
-    // is corrupt or unparseable, we let the StateStore handle the repair
-    // (its own concern).
+    // we don't clobber an existing state file (idempotency). If the file is
+    // present but corrupt (StateStore.load() throws E_STATE_CORRUPT), we
+    // delete the corrupt file and write a fresh defaultState() so that
+    // `bootstrap({fromStage: 5})` actually repairs a broken state.json
+    // (AUDIT-1-005). If the file is missing, load() returns defaultState()
+    // without writing — we persist it here.
     const statePath = join(ctx.linuxifyHome, 'state.json');
     let stateWritten = false;
-    if (!(await exists(statePath))) {
-      // Use the state module's `defaultState()` to get a schema-valid
-      // State, then stamp the linuxify version from the bootstrap context.
+    let stateRepaired = false;
+    const stateAlreadyPresent = await exists(statePath);
+    try {
+      // Probe the existing file. Throws on corrupt JSON or schema mismatch.
+      await ctx.stateStore.load();
+      if (!stateAlreadyPresent) {
+        // File was missing — load() returned defaultState() without
+        // persisting. Stamp the linuxify version and write it now.
+        const state: State = {
+          ...defaultState(),
+          linuxify_version: ctx.linuxifyVersion,
+        };
+        await ctx.stateStore.save(state);
+        stateWritten = true;
+        logger.info('stage 5: wrote default state.json', { path: statePath });
+      } else {
+        logger.info('stage 5: state.json already exists and is valid, preserving', { path: statePath });
+      }
+    } catch (e) {
+      // File exists but is corrupt — delete and rebuild from defaultState().
+      stateRepaired = true;
+      logger.warn(
+        {
+          path: statePath,
+          error: (e as Error).message,
+        },
+        'stage 5: state.json is corrupt — rebuilding from default (AUDIT-1-005)',
+      );
+      await rmrf(statePath);
       const state: State = {
         ...defaultState(),
         linuxify_version: ctx.linuxifyVersion,
       };
       await ctx.stateStore.save(state);
       stateWritten = true;
-      logger.info('stage 5: wrote default state.json', { path: statePath });
-    } else {
-      logger.info('stage 5: state.json already exists, preserving', { path: statePath });
+      logger.info('stage 5: wrote fresh state.json after repair', { path: statePath });
     }
 
     // 4. Auto-clone the registry if it doesn't exist.
@@ -202,6 +229,7 @@ export async function stage5Home(ctx: BootstrapContext): Promise<StageResult> {
         subdirsCreated: LINUXIFY_HOME_SUBDIRS.length,
         configWritten,
         stateWritten,
+        stateRepaired,
         registryCloned,
       },
     };

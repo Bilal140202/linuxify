@@ -165,7 +165,7 @@ export async function runFix(opts: FixOptions, ctx: CommandContext): Promise<num
     }
   }
 
-  return allSucceeded ? EXIT_CODES.OK : EXIT_CODES.STEP_FAILED;
+  return allSucceeded ? EXIT_CODES.OK : EXIT_CODES.GENERIC_ERROR;
 }
 
 function printDiagnosis(diag: Diagnosis, out: CommandContext['output']): void {
@@ -228,7 +228,7 @@ async function applyRepair(
       continue;
     }
     try {
-      const result = await exec('sh', ['-c', step.command], { timeoutMs: 60000 });
+      const result = await exec('sh', ['-c', step.command], { timeoutMs: 600_000 });
       if (result.exitCode !== 0) {
         return { success: false, error: `Step "${step.description}" exited ${result.exitCode}: ${result.stderr}` };
       }

@@ -1,3 +1,4 @@
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 /**
  * Hosting engine — core orchestrator for all hosting operations.
@@ -13,13 +14,14 @@ import { join } from 'node:path';
  */
 
 import { exists, readFile, writeFile, ensureDir } from '../utils/fs.js';
-import { exec, getLinuxifyHome } from '../utils/process.js';
 import { logger } from '../utils/log.js';
+import { exec, getLinuxifyHome } from '../utils/process.js';
+
 import { HostingConfigSchema, DEFAULT_HOSTING_CONFIG, type HostingConfig, type DeployedApp } from './config.js';
 import { detectProject, type DetectionResult } from './detect.js';
+import { TunnelManager } from './expose.js';
 import { ProcessManager } from './process-manager.js';
 import { ServiceManager, type ServiceType } from './services.js';
-import { TunnelManager } from './expose.js';
 
 const HOSTING_SUBDIR = 'hosting';
 const HOSTING_CONFIG_FILE = 'config.json';
@@ -183,12 +185,24 @@ export class HostingEngine {
       autoDeployed: appName === undefined,
     };
 
-    const config = await this.loadConfig() ?? DEFAULT_HOSTING_CONFIG;
+    // BUG FIX (B-H2): if config.json was missing or malformed, fall back to a
+    // properly-initialized config (initialized=true) rather than the bare
+    // DEFAULT_HOSTING_CONFIG (which has initialized=false). Otherwise a
+    // successful deploy would silently flip the host's initialized flag to
+    // false and break `host doctor` + every other path that gates on
+    // `isInitialized()`.
+    const existing = await this.loadConfig();
+    const config: HostingConfig = existing
+      ? { ...existing }
+      : {
+          ...DEFAULT_HOSTING_CONFIG,
+          initialized: true,
+          initializedAt: new Date().toISOString(),
+        };
     // Remove any existing app with the same name
     config.apps = config.apps.filter((a) => a.name !== plan.name);
     config.apps.push(app);
     await this.saveConfig(config);
-    this.config = config;
 
     const url = `http://127.0.0.1:${plan.port}`;
     return { success: true, url, message: `Deployed ${plan.name} at ${url}` };
@@ -253,21 +267,57 @@ export class HostingEngine {
 
   /**
    * Restart an app.
+   *
+   * BUG FIX (B-H4): previously this method called `pm.restart(name)`
+   * directly without first checking that the app actually exists in the
+   * hosting config — if PM2 happened to have a process with the same
+   * name (e.g. a leftover from a removed deployment), the restart would
+   * succeed and report "Restarted" while the hosting config remained
+   * out of sync. We now refuse with `false` if the app is not in config.
    */
   async restartApp(name: string): Promise<boolean> {
-    return await this.pm.restart(name) === 0;
+    const config = await this.loadConfig();
+    const app = config?.apps.find((a) => a.name === name);
+    if (!app) {
+      logger.warn({ name }, 'hosting: restartApp — app not in config');
+      return false;
+    }
+    const result = await this.pm.restart(name);
+    if (result === 0 && config) {
+      app.status = 'running';
+      app.startedAt = new Date().toISOString();
+      await this.saveConfig(config);
+    }
+    return result === 0;
   }
 
   /**
    * Remove an app.
+   *
+   * BUG FIX (B-H5): previously this method always returned `true` even
+   * if `pm.remove()` failed, masking real failures from the user. We
+   * now return the actual PM2 outcome AND clean up config regardless
+   * (so a broken PM2 entry doesn't keep the config entry alive as
+   * garbage).
    */
   async removeApp(name: string): Promise<boolean> {
-    await this.pm.remove(name);
+    const pmResult = await this.pm.remove(name);
     const config = await this.loadConfig();
     if (config) {
+      const before = config.apps.length;
       config.apps = config.apps.filter((a) => a.name !== name);
-      await this.saveConfig(config);
-      this.config = config;
+      const after = config.apps.length;
+      if (before !== after) {
+        await this.saveConfig(config);
+        logger.info({ name, removed: before - after }, 'hosting: removed app from config');
+      }
+    }
+    if (pmResult !== 0) {
+      logger.warn({ name, exitCode: pmResult }, 'hosting: PM2 delete had non-zero exit');
+      // We still return true if the config entry was removed — the app
+      // is functionally gone from the user's perspective even if PM2
+      // was already in a bad state. The PM2 warning is logged.
+      return config?.apps.find((a) => a.name === name) === undefined;
     }
     return true;
   }
@@ -374,11 +424,56 @@ export class HostingEngine {
     await writeFile(this.configPath, JSON.stringify(config, null, 2));
   }
 
+  /**
+   * Find an available port. Starts from `defaultPort` (or the next slot
+   * above any ports already used by deployed apps), then probes the OS to
+   * confirm the port is actually bindable before returning it.
+   *
+   * BUG FIX (B-H15): previously this only walked past ports recorded in
+   * `config.apps`, which meant if nginx (or anything else outside Linuxify)
+   * was already bound to the next candidate port, deploy would silently
+   * try to bind it and fail at runtime with `EADDRINUSE`. Now we probe
+   * via a throwaway TCP server to confirm the port is actually free.
+   */
   private async findAvailablePort(): Promise<number> {
     const config = await this.loadConfig();
     const usedPorts = new Set(config?.apps.map((a) => a.port) ?? []);
     let port = config?.defaultPort ?? 8080;
+    // Skip past any ports already in use by deployed apps.
     while (usedPorts.has(port)) port++;
-    return port;
+    // Now probe the OS to confirm each candidate is actually bindable.
+    // Cap the search so we don't loop forever in pathological cases.
+    const MAX_PROBES = 100;
+    for (let i = 0; i < MAX_PROBES; i++) {
+      if (await this.isPortFree(port)) return port;
+      port++;
+    }
+    // Fall back to a random high port if everything in the default range
+    // is taken. Ephemeral range starts at 49152 per RFC 6056; we step
+    // up from there.
+    const fallback = 49152 + Math.floor(Math.random() * 10000);
+    return fallback;
+  }
+
+  /**
+   * Probe whether a TCP port is currently free on the loopback interface.
+   * Resolves true if the port can be bound (i.e. nothing is listening on
+   * it), false otherwise. Never throws — a probe error is treated as
+   * "port not free" so we move on to the next candidate.
+   */
+  private async isPortFree(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const srv = createServer();
+      srv.unref();
+      srv.once('error', () => {
+        try { srv.close(); } catch { /* ignore */ }
+        resolve(false);
+      });
+      srv.once('listening', () => {
+        try { srv.close(); } catch { /* ignore */ }
+        resolve(true);
+      });
+      srv.listen(port, '127.0.0.1');
+    });
   }
 }

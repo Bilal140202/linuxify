@@ -58,6 +58,9 @@ export const PROFILE_CHECKS: Record<DoctorProfile, string[]> = {
     'path.proot',
     'path.proot-distro-usable',
     'compat.platform',
+    'hosting.config-state',
+    'docker.runtime-available',
+    'docker.arm64-support',
   ],
 
   /**
@@ -86,6 +89,12 @@ export const PROFILE_CHECKS: Record<DoctorProfile, string[]> = {
     'network.dns',
     'network.github',
     'network.npm',
+    'hosting.config-state',
+    'hosting.nginx-installed',
+    'docker.runtime-available',
+    'docker.arm64-support',
+    'docker.port-allocation',
+    'docker.wake-lock',
   ],
 
   /**
@@ -115,6 +124,12 @@ export const PROFILE_CHECKS: Record<DoctorProfile, string[]> = {
     'path.proot',
     'path.proot-distro-usable',
     'compat.platform',
+    'hosting.config-state',
+    'hosting.nginx-installed',
+    'docker.runtime-available',
+    'docker.arm64-support',
+    'docker.port-allocation',
+    'docker.wake-lock',
   ],
 
   /**
@@ -143,6 +158,12 @@ export const PROFILE_CHECKS: Record<DoctorProfile, string[]> = {
     'network.dns',
     'network.github',
     'network.npm',
+    'hosting.config-state',
+    'hosting.nginx-installed',
+    'docker.runtime-available',
+    'docker.arm64-support',
+    'docker.port-allocation',
+    'docker.wake-lock',
   ],
 };
 

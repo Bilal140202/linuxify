@@ -6,8 +6,8 @@
  * All operations run inside the proot via `proot-distro login <distro> --`.
  */
 
-import { exec } from '../utils/process.js';
 import { logger } from '../utils/log.js';
+import { exec } from '../utils/process.js';
 
 const PM2_TIMEOUT = 15_000;
 

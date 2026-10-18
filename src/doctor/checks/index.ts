@@ -23,9 +23,15 @@ import { bootstrapCompletedCheck } from './bootstrap-completed.js';
 import { compatPlatformCheck } from './compat-platform.js';
 import { distroBootableCheck } from './distro-bootable.js';
 import { distroInstalledCheck } from './distro-installed.js';
+import { dockerArm64SupportCheck } from './docker-arm64-support.js';
+import { dockerPortAllocationCheck } from './docker-port-allocation.js';
+import { dockerRuntimeAvailableCheck } from './docker-runtime-available.js';
+import { dockerWakeLockCheck } from './docker-wake-lock.js';
 import { hostAndroidCheck } from './host-android.js';
 import { hostArchCheck } from './host-arch.js';
+import { hostConfigStateCheck } from './host-config-state.js';
 import { hostMemoryCheck } from './host-memory.js';
+import { hostNginxInstalledCheck } from './host-nginx-installed.js';
 import { hostStorageCheck } from './host-storage.js';
 import { hostTermuxCheck } from './host-termux.js';
 import { networkDnsCheck } from './network-dns.js';
@@ -76,6 +82,14 @@ export const ALL_CHECKS: DoctorCheck[] = [
   networkDnsCheck,
   networkGithubCheck,
   networkNpmCheck,
+  // services — hosting subsystem
+  hostConfigStateCheck,
+  hostNginxInstalledCheck,
+  // services — docker subsystem
+  dockerRuntimeAvailableCheck,
+  dockerArm64SupportCheck,
+  dockerPortAllocationCheck,
+  dockerWakeLockCheck,
 ];
 
 /**

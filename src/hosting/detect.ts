@@ -12,8 +12,9 @@
  *   index.html only          → Static (serve directory)
  */
 
-import { exists, readFile } from '../utils/fs.js';
 import { join } from 'node:path';
+
+import { exists, readFile } from '../utils/fs.js';
 import { logger } from '../utils/log.js';
 
 /**

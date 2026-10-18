@@ -7,8 +7,8 @@
  * Never auto-expose database ports to the public internet.
  */
 
-import { exec } from '../utils/process.js';
 import { logger } from '../utils/log.js';
+import { exec } from '../utils/process.js';
 
 const SERVICE_TIMEOUT = 120_000;
 
@@ -39,10 +39,23 @@ export class ServiceManager {
         'sudo -u postgres psql -c "ALTER USER postgres PASSWORD \'linuxify\';" 2>/dev/null || true',
       ],
       mariadb: [
+        // SECURITY FIX (B-H14): never use --skip-grant-tables. The previous
+        // implementation fell back to `mysqld_safe --skip-grant-tables &`
+        // when `service mariadb start` failed — which runs MariaDB with
+        // ALL authentication disabled. Anyone with network access to the
+        // proot (which on Android is every app on the device via the
+        // shared loopback) could connect as root with no password. We
+        // now initialize the password via the official `mariadb-init`
+        // approach: install the system tables (mysql_install_db), start
+        // the server normally, then grant privileges through the
+        // unix_socket auth plugin that ships with MariaDB 10.6+.
         'apt-get install -y mariadb-server',
-        'service mariadb start 2>/dev/null || mysqld_safe --skip-grant-tables &',
+        'mysql_install_db 2>/dev/null || true',
+        'service mariadb start 2>/dev/null || mysqld_safe --skip-networking &',
         'sleep 2',
-        'mysql -e "CREATE USER IF NOT EXISTS \'linuxify\'@\'localhost\'; GRANT ALL PRIVILEGES ON *.* TO \'linuxify\'@\'localhost\';" 2>/dev/null || true',
+        // Use the unix_socket plugin (default in MariaDB 10.6+) to set
+        // the linuxify user's password. This avoids any auth-bypass.
+        'mariadb -u root -e "CREATE USER IF NOT EXISTS \'linuxify\'@\'localhost\' IDENTIFIED VIA unix_socket; GRANT ALL PRIVILEGES ON *.* TO \'linuxify\'@\'localhost\';" 2>/dev/null || true',
       ],
       redis: [
         'apt-get install -y redis-server',

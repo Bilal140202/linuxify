@@ -29,6 +29,7 @@ import { registerCompletionsCommand } from './completions.js';
 import { registerConfigCommand } from './config.js';
 import { registerDiscoverCommand } from './discover.js';
 import { registerDistrosCommand } from './distros.js';
+import { registerDockerCommand } from './docker.js';
 import { registerDoctorCommand } from './doctor.js';
 import { registerEnvCommand } from './env.js';
 import { registerFixCommand } from './fix.js';
@@ -142,6 +143,9 @@ export function registerAllCommands(
 
   // Hosting subsystem.
   registerHostCommand(program, getCtx, setExit);
+
+  // Docker subsystem — one-command load + run any docker image.
+  registerDockerCommand(program, getCtx, setExit);
 
   // Shell completions.
   registerCompletionsCommand(program, getCtx, setExit);

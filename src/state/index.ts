@@ -22,6 +22,9 @@ export {
   LastDoctorRunSchema,
   TelemetrySchema,
   PluginInstallSchema,
+  DockerContainerSchema,
+  DockerStateSchema,
+  DEFAULT_DOCKER_STATE,
 } from './schema.js';
 
 export type {
@@ -34,6 +37,8 @@ export type {
   LastDoctorRun,
   Telemetry,
   PluginInstall,
+  DockerContainer,
+  DockerState,
 } from './schema.js';
 
 export { StateStore, defaultState, getStatePath } from './store.js';

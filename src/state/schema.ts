@@ -166,6 +166,85 @@ export const PluginInstallSchema = z
   })
   .strict();
 
+/**
+ * Zod schema for a `DockerContainer` entry inside `state.docker.containers`.
+ *
+ * Tracks a docker container launched via `linuxify docker run` so that
+ * `linuxify docker ps` / `stop` / `rm` / `logs` can find it again without
+ * re-parsing the runtime's output. The `name` is the user-facing handle
+ * (or the auto-generated slug from the image name); the `container_id` is
+ * the runtime's internal ID (the docker/podman container short ID, or
+ * `podroid-<name>` for Podroid-managed forwards). The `host_port` is the
+ * port exposed on the Android device; `guest_port` is the port inside the
+ * container. `forward_rule_id` is the Podroid forwarding rule identifier
+ * (empty string when no forward was needed, e.g. when running on
+ * proot-distro Docker directly).
+ */
+export const DockerContainerSchema = z
+  .object({
+    name: z.string().min(1),
+    image: z.string().min(1),
+    container_id: z.string(),
+    runtime: z.enum(['podroid', 'docker', 'podman']),
+    host_port: z.number().int().min(1).max(65535),
+    guest_port: z.number().int().min(1).max(65535),
+    forward_rule_id: z.string(),
+    started_at: z.string().datetime(),
+    restart_policy: z.enum(['no', 'unless-stopped', 'always', 'on-failure']),
+    status: z.enum(['running', 'stopped', 'paused', 'failed', 'unknown']),
+    volumes: z.array(z.object({
+      host_path: z.string().min(1),
+      container_path: z.string().min(1),
+      mode: z.enum(['ro', 'rw']),
+    })),
+    env: z.array(z.object({
+      key: z.string().min(1),
+      value: z.string(),
+    })),
+  })
+  .strict();
+
+/**
+ * Zod schema for the `docker` block of `state.json`.
+ *
+ * The `containers` array is the source of truth for `linuxify docker ps`.
+ * The `next_port_hint` field is the lower bound for the next auto-allocated
+ * host port — we bump it whenever a new container grabs a port so that
+ * `linuxify docker run <image>` can hand out the same port to the same
+ * image across restarts (stable URL, easier bookmarking). The
+ * `default_runtime` field is what `linuxify docker run` uses when the
+ * user doesn't pass `--runtime`; it's auto-detected on first run (Podroid
+ * preferred, falling back to docker inside the active proot-distro).
+ */
+export const DockerStateSchema = z
+  .object({
+    initialized: z.boolean(),
+    default_runtime: z.enum(['podroid', 'docker', 'podman']).nullable(),
+    next_port_hint: z.number().int().min(1024).max(65535),
+    port_range_start: z.number().int().min(1024).max(65535),
+    port_range_end: z.number().int().min(1024).max(65535),
+    wake_lock_enabled: z.boolean(),
+    containers: z.array(DockerContainerSchema),
+    initialized_at: z.string().datetime().nullable(),
+  })
+  .strict();
+
+/**
+ * Default value for the `docker` block. Exposed so the docker subsystem
+ * and migration stubs can rehydrate it for old `state.json` files that
+ * predate the docker block's introduction.
+ */
+export const DEFAULT_DOCKER_STATE: z.infer<typeof DockerStateSchema> = {
+  initialized: false,
+  default_runtime: null,
+  next_port_hint: 8000,
+  port_range_start: 8000,
+  port_range_end: 8999,
+  wake_lock_enabled: false,
+  containers: [],
+  initialized_at: null,
+};
+
 // ---------------------------------------------------------------------------
 // Top-level schema
 // ---------------------------------------------------------------------------
@@ -177,6 +256,11 @@ export const PluginInstallSchema = z
  * shape bumps this and adds a migration in `src/state/migrate.ts` (to be
  * written). `active_distro` is allowed to be an empty string for a fresh
  * install with no distros yet activated.
+ *
+ * The `docker` block is `.default(DEFAULT_DOCKER_STATE)` so that legacy
+ * state.json files written before the docker subsystem existed are
+ * backfilled automatically on load — no migration required for the simple
+ * "add a new optional block" case.
  */
 export const StateSchema = z
   .object({
@@ -191,6 +275,7 @@ export const StateSchema = z
     last_doctor_run: LastDoctorRunSchema.nullable(),
     telemetry: TelemetrySchema,
     plugins: z.array(PluginInstallSchema),
+    docker: DockerStateSchema.default(DEFAULT_DOCKER_STATE),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime(),
   })
@@ -223,6 +308,12 @@ export type Telemetry = z.infer<typeof TelemetrySchema>;
 
 /** Inferred type for {@link PluginInstallSchema}. */
 export type PluginInstall = z.infer<typeof PluginInstallSchema>;
+
+/** Inferred type for {@link DockerContainerSchema}. */
+export type DockerContainer = z.infer<typeof DockerContainerSchema>;
+
+/** Inferred type for {@link DockerStateSchema}. */
+export type DockerState = z.infer<typeof DockerStateSchema>;
 
 /**
  * Inferred TypeScript type for the top-level `state.json` document.

@@ -397,6 +397,16 @@ function emptyState(): State {
     last_doctor_run: null,
     telemetry: { user_id: null, enabled: false, last_flush: null },
     plugins: [],
+    docker: {
+      initialized: false,
+      default_runtime: null,
+      next_port_hint: 8000,
+      port_range_start: 8000,
+      port_range_end: 8999,
+      wake_lock_enabled: false,
+      containers: [],
+      initialized_at: null,
+    },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

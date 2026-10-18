@@ -38,7 +38,7 @@ import { readJson, writeJson, ensureDir, exists, resolvePath } from '../utils/fs
 import { logger } from '../utils/log.js';
 import { getLinuxifyHome } from '../utils/process.js';
 
-import { StateSchema, type State } from './schema.js';
+import { StateSchema, DEFAULT_DOCKER_STATE, type State } from './schema.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -145,6 +145,10 @@ export function defaultState(): State {
       last_flush: null,
     },
     plugins: [],
+    // Docker subsystem default. Re-exported from schema.ts as
+    // DEFAULT_DOCKER_STATE so the docker subsystem + migration stubs can
+    // rehydrate this without duplicating field values.
+    docker: { ...DEFAULT_DOCKER_STATE },
     created_at: now,
     updated_at: now,
   };

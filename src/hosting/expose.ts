@@ -9,8 +9,8 @@
  * 3. Custom domain — Cloudflare Tunnel with named tunnel + domain
  */
 
-import { exec } from '../utils/process.js';
 import { logger } from '../utils/log.js';
+import { exec } from '../utils/process.js';
 // import { confirm } from '../utils/prompt.js';
 
 export type ExposureMethod = 'local' | 'tunnel' | 'domain' | 'none';
@@ -25,24 +25,21 @@ export class TunnelManager {
   constructor(private readonly distro: string) {}
 
   /**
-   * Present exposure options to the user and configure the selected method.
+   * Compute the best available exposure for the given app.
+   *
+   * BUG FIX (B-H9): previously this method had a stub `console.log` menu
+   * with a commented-out prompt and always fell through to
+   * `exposeLocal`. The dead code made it look like the user had a choice
+   * between local / tunnel / domain. Now the signature is honest: it
+   * auto-selects local-network exposure (which always works) and exposes
+   * a separate `exposeTunnel` method for users who explicitly want a
+   * public URL via cloudflared. The CLI layer can later grow a
+   * `--method local|tunnel|domain` flag and dispatch accordingly
+   * without re-introducing interactive prompts (which break non-TTY
+   * use cases like cron / CI).
    */
   async expose(appName: string, port: number): Promise<ExposureResult> {
-    logger.info({ appName, port }, 'hosting: configuring exposure');
-
-    // Check what's available
-    const localIp = await this.getLocalIp();
-    const cloudflaredInstalled = await this.isCloudflaredInstalled();
-
-    console.log('\nExposure options:\n');
-    console.log(`  1. Local network${localIp ? ` — http://${localIp}:${port}` : ' (no IP detected)'}`);
-    console.log(`  2. Temporary public URL${cloudflaredInstalled ? '' : ' (requires cloudflared install)'}`);
-    console.log('  3. Custom domain (requires Cloudflare account)');
-    console.log('  4. Cancel\n');
-
-    // const choice = await confirm('Which exposure method? (enter number)', false);
-
-    // For now, implement local network (simplest, always works)
+    logger.info({ appName, port }, 'hosting: configuring local exposure');
     return await this.exposeLocal(port);
   }
 
@@ -117,7 +114,7 @@ export class TunnelManager {
     } catch {
       // Try hostname -I fallback
       try {
-        const r = await exec('sh', ['-c', 'hostname -I 2>/dev/null | awk "{print \$1}"'], { timeoutMs: 3000 });
+        const r = await exec('sh', ['-c', 'hostname -I 2>/dev/null | awk "{print $1}"'], { timeoutMs: 3000 });
         const ip = r.stdout.trim();
         return ip || null;
       } catch {

@@ -243,6 +243,100 @@ export async function runDocker(
       return result.issues.length > 0 ? EXIT_CODES.ENV_NOT_READY : EXIT_CODES.OK;
     }
 
+    case 'config': {
+      // Parse flags into a patch object. If no flags are supplied, just
+      // print the current config (read-only).
+      //
+      // Commander quirk: kebab-case option names like `--wake-lock` are
+      // stored on the opts object in camelCase form (`opts.wakeLock`),
+      // NOT in kebab-case. We use bracket access with the camelCase
+      // key to retrieve each.
+      const patch: {
+        wakeLockEnabled?: boolean;
+        portRangeStart?: number;
+        portRangeEnd?: number;
+        defaultRuntime?: DockerRuntime | null;
+      } = {};
+
+      if (typeof opts.wakeLock === 'string') {
+        const v = opts.wakeLock;
+        if (v === 'on' || v === 'true' || v === '1') {
+          patch.wakeLockEnabled = true;
+        } else if (v === 'off' || v === 'false' || v === '0') {
+          patch.wakeLockEnabled = false;
+        } else {
+          out.error(`--wake-lock must be on|off; got '${v}'`);
+          return EXIT_CODES.GENERIC_ERROR;
+        }
+      }
+
+      if (typeof opts.portRange === 'string') {
+        // Accept "START-END" (e.g. "9000-9999") or "START:END".
+        const m = /^(\d+)[-:](\d+)$/.exec(opts.portRange.trim());
+        if (!m) {
+          out.error(`--port-range must be START-END (e.g. 9000-9999); got '${opts.portRange}'`);
+          return EXIT_CODES.GENERIC_ERROR;
+        }
+        patch.portRangeStart = Number(m[1]);
+        patch.portRangeEnd = Number(m[2]);
+      }
+
+      if (typeof opts.defaultRuntime === 'string') {
+        const v = opts.defaultRuntime;
+        if (v === 'podroid' || v === 'docker' || v === 'podman') {
+          patch.defaultRuntime = v as DockerRuntime;
+        } else if (v === 'auto' || v === 'null') {
+          patch.defaultRuntime = null;
+        } else {
+          out.error(`--default-runtime must be podroid|docker|podman|auto; got '${v}'`);
+          return EXIT_CODES.GENERIC_ERROR;
+        }
+      }
+
+      if (opts.reset === true) {
+        // Reset everything to defaults.
+        const { DEFAULT_DOCKER_STATE } = await import('../../state/index.js');
+        patch.wakeLockEnabled = DEFAULT_DOCKER_STATE.wake_lock_enabled;
+        patch.portRangeStart = DEFAULT_DOCKER_STATE.port_range_start;
+        patch.portRangeEnd = DEFAULT_DOCKER_STATE.port_range_end;
+        patch.defaultRuntime = DEFAULT_DOCKER_STATE.default_runtime;
+      }
+
+      const hasChanges = Object.keys(patch).length > 0;
+      if (!hasChanges) {
+        // No flags — display current config.
+        const cfg = await engine.getConfig();
+        out.info('');
+        out.info('Docker configuration:');
+        out.info(`  Initialized:        ${cfg.initialized ? '✔ yes' : '✖ no'}${cfg.initializedAt ? ` (at ${cfg.initializedAt})` : ''}`);
+        out.info(`  Default runtime:    ${cfg.defaultRuntime ?? '(auto-detect)'}`);
+        out.info(`  Port range:         ${cfg.portRangeStart}-${cfg.portRangeEnd} (next hint: ${cfg.nextPortHint})`);
+        out.info(`  Wake lock:          ${cfg.wakeLockEnabled ? '✔ on' : '✖ off'}`);
+        out.info(`  Container count:    ${cfg.containerCount}`);
+        out.info('');
+        out.info('To change a setting, pass one of:');
+        out.info('  --wake-lock on|off');
+        out.info('  --port-range START-END  (e.g. --port-range 9000-9999)');
+        out.info('  --default-runtime podroid|docker|podman|auto');
+        out.info('  --reset                  (restore defaults)');
+        return EXIT_CODES.OK;
+      }
+
+      try {
+        const result = await engine.setConfig(patch);
+        out.success(result.message);
+        const u = result.updated;
+        out.info(`  Default runtime: ${u.defaultRuntime ?? '(auto)'}`);
+        out.info(`  Port range:      ${u.portRangeStart}-${u.portRangeEnd}`);
+        out.info(`  Wake lock:       ${u.wakeLockEnabled ? 'on' : 'off'}`);
+        return EXIT_CODES.OK;
+      } catch (err) {
+        const e = err as { code?: string; message: string };
+        out.error(`Failed to update config: ${e.message}`);
+        return EXIT_CODES.GENERIC_ERROR;
+      }
+    }
+
     default:
       out.error(`Unknown docker subcommand: ${subcommand}`);
       printHelp(out);
@@ -401,6 +495,7 @@ function printHelp(out: CommandContext['output']): void {
   out.info('  linuxify docker logs <name> [--lines N]    View container logs');
   out.info('  linuxify docker forward <g> <h>            Add a Podroid port forward');
   out.info('  linuxify docker clean                      Stop all + remove all forwards');
+  out.info('  linuxify docker config [options]           Show / set docker config');
   out.info('  linuxify docker doctor                     Diagnose docker subsystem');
   out.info('');
   out.info('Run options (for `docker run`):');
@@ -437,16 +532,19 @@ export const registerDockerCommand: RegisterCommandFn = (program, getCtx, setExi
     .option('--volume <H:C[:ro|rw]>', 'Volume mount (repeatable)', 'append')
     .option('--env <KEY=VAL>', 'Environment variable (repeatable)', 'append')
     .option('--restart <policy>', 'Restart policy (no|unless-stopped|always|on-failure)')
-    .option('--runtime <backend>', 'Force runtime (podroid|docker|podman)')
+    .option('--runtime <backend>', 'Force runtime for `docker run` (podroid|docker|podman)')
     .option('--pull', 'Force re-pull even if cached')
     .option('--extra <args>', 'Extra args verbatim to docker run')
     .option('--lines <n>', 'Number of log lines (for `docker logs`)', Number)
-    .option('--protocol <proto>', 'Protocol for `docker forward` (tcp|udp)');
+    .option('--protocol <proto>', 'Protocol for `docker forward` (tcp|udp)')
+    // `docker config` flags:
+    .option('--wake-lock <on|off>', 'Enable/disable the wake lock (for `docker config`)')
+    .option('--port-range <START-END>', 'Set the auto-allocated port range (for `docker config`)')
+    .option('--default-runtime <backend>', 'Force default runtime: podroid|docker|podman|auto (for `docker config`)')
+    .option('--reset', 'Reset all docker config to defaults (for `docker config`)');
 
   cmd.action(async (subcommand: string | undefined, args: string[], opts: Record<string, unknown>) => {
     const ctx = await getCtx();
-    // When called as `linuxify docker` (no subcommand), commander passes
-    // an empty array (or undefined) for args; normalize to undefined.
     const sub = subcommand;
     const rest = Array.isArray(args) ? args : [];
     const code = await runDocker(opts ?? {}, ctx, sub, ...rest);

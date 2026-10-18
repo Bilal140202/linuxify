@@ -326,6 +326,273 @@ export function errorThrown(
 }
 
 // ---------------------------------------------------------------------------
+// Docker events
+// ---------------------------------------------------------------------------
+
+/**
+ * Hash a docker image reference into the `image_hash` field. Same
+ * privacy contract as {@link hashPackageName}: SHA-256 without a
+ * rotating salt (v0.1 limitation; the salt-fetch infra is a v2
+ * feature per telemetry-privacy.md §5).
+ *
+ * The image string may include a registry prefix (e.g.
+ * `lscr.io/linuxserver/calibre-web:latest`) — the full reference is
+ * hashed verbatim, never truncated, never split. The server can still
+ * aggregate by hash since it knows the common image list.
+ *
+ * @param image - The image reference (e.g. `"nginx"` or `"lscr.io/linuxserver/calibre-web:latest"`).
+ * @returns A 64-character lowercase hex SHA-256 digest.
+ */
+function hashImageName(image: string): string {
+  return sha256(image);
+}
+
+/**
+ * Hash a container name (linuxify-generated slug or user-supplied) into
+ * the `name_hash` field. Same privacy contract as {@link hashImageName}.
+ *
+ * @param name - The container name (e.g. `"nginx"` or `"calibre-web-2"`).
+ * @returns A 64-character lowercase hex SHA-256 digest.
+ */
+function hashContainerName(name: string): string {
+  return sha256(name);
+}
+
+/**
+ * Build a `docker.run_start` event. Emitted at the start of
+ * `linuxify docker run <image>`.
+ *
+ * Privacy contract: only the image name hash + the runtime kind +
+ * whether the image was force-pulled. Never the raw image string
+ * (which may contain a private registry URL with credentials), never
+ * the bind-mount paths (which may contain personal file names).
+ *
+ * @param image - The image reference (e.g. `"nginx"`). Hashed before storage.
+ * @param runtime - The runtime kind that will back the run.
+ * @param forcePull - Whether `--pull` was passed.
+ * @returns A `docker.run_start` {@link TelemetryEvent}.
+ */
+export function dockerRunStart(
+  image: string,
+  runtime: 'podroid' | 'docker' | 'podman' | null,
+  forcePull: boolean,
+): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.run_start' as TelemetryEventType,
+    fields: {
+      image_hash: hashImageName(image),
+      runtime,
+      force_pull: forcePull,
+    },
+  };
+}
+
+/**
+ * Build a `docker.run_complete` event. Emitted on successful
+ * `linuxify docker run <image>`.
+ *
+ * Privacy contract: image hash, runtime, the allocated host port
+ * (an integer — not personally identifying; useful for port-range
+ * utilization analysis), the wall-clock duration of the run, and
+ * whether the image was already cached (skipped pull).
+ *
+ * @param image - The image reference. Hashed before storage.
+ * @param runtime - The runtime kind that backed the run.
+ * @param hostPort - The allocated host port.
+ * @param durationMs - Wall-clock duration of the run() call in ms.
+ * @param pulled - Whether the image was actually pulled (false if cached).
+ * @returns A `docker.run_complete` {@link TelemetryEvent}.
+ */
+export function dockerRunComplete(
+  image: string,
+  runtime: 'podroid' | 'docker' | 'podman' | null,
+  hostPort: number,
+  durationMs: number,
+  pulled: boolean,
+): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.run_complete' as TelemetryEventType,
+    fields: {
+      image_hash: hashImageName(image),
+      runtime,
+      host_port: hostPort,
+      duration_ms: durationMs,
+      pulled,
+    },
+  };
+}
+
+/**
+ * Build a `docker.run_failed` event. Emitted when `linuxify docker run`
+ * returns a failure. The error code is a short stable string
+ * (`E_DOCKER_*` or `E_STATE_*`); never the full error message (which
+ * may contain user file paths, network URLs, or stack traces).
+ *
+ * @param image - The image reference. Hashed before storage.
+ * @param runtime - The runtime kind that backed the failed run (null if detection failed).
+ * @param errorCode - The short stable error code (e.g. `"E_DOCKER_NO_FREE_PORT"`).
+ * @returns A `docker.run_failed` {@link TelemetryEvent}.
+ */
+export function dockerRunFailed(
+  image: string,
+  runtime: 'podroid' | 'docker' | 'podman' | null,
+  errorCode: string,
+): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.run_failed' as TelemetryEventType,
+    fields: {
+      image_hash: hashImageName(image),
+      runtime,
+      error_code: errorCode,
+    },
+  };
+}
+
+/**
+ * Build a `docker.ps` event. Emitted on every `linuxify docker ps`
+ * invocation. Useful for understanding how many containers a typical
+ * user manages.
+ *
+ * @param containerCount - The number of containers in state.docker.containers[].
+ * @param runtime - The runtime kind that backed the ps (null if unavailable).
+ * @returns A `docker.ps` {@link TelemetryEvent}.
+ */
+export function dockerPs(
+  containerCount: number,
+  runtime: 'podroid' | 'docker' | 'podman' | null,
+): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.ps' as TelemetryEventType,
+    fields: {
+      container_count: containerCount,
+      runtime,
+    },
+  };
+}
+
+/**
+ * Build a `docker.stop` event. Emitted on `linuxify docker stop <name>`.
+ *
+ * Privacy contract: only the container name hash + whether the stop
+ * succeeded. Never the container's image, volumes, or env (those are
+ * captured in the run_start/run_complete events at run time and would
+ * be redundant here).
+ *
+ * @param name - The container name. Hashed before storage.
+ * @param success - Whether the stop succeeded.
+ * @returns A `docker.stop` {@link TelemetryEvent}.
+ */
+export function dockerStop(name: string, success: boolean): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.stop' as TelemetryEventType,
+    fields: {
+      name_hash: hashContainerName(name),
+      success,
+    },
+  };
+}
+
+/**
+ * Build a `docker.rm` event. Emitted on `linuxify docker rm <name>`.
+ *
+ * @param name - The container name. Hashed before storage.
+ * @param success - Whether the rm succeeded.
+ * @returns A `docker.rm` {@link TelemetryEvent}.
+ */
+export function dockerRm(name: string, success: boolean): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.rm' as TelemetryEventType,
+    fields: {
+      name_hash: hashContainerName(name),
+      success,
+    },
+  };
+}
+
+/**
+ * Build a `docker.clean` event. Emitted on `linuxify docker clean`.
+ *
+ * @param stoppedCount - Number of containers stopped + removed.
+ * @param forwardsRemoved - Number of Podroid forwards removed (0 on proot path).
+ * @returns A `docker.clean` {@link TelemetryEvent}.
+ */
+export function dockerClean(stoppedCount: number, forwardsRemoved: number): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.clean' as TelemetryEventType,
+    fields: {
+      stopped_count: stoppedCount,
+      forwards_removed: forwardsRemoved,
+    },
+  };
+}
+
+/**
+ * Build a `docker.doctor` event. Emitted on `linuxify docker doctor`.
+ *
+ * Privacy contract: only counts (issue count, container count) + whether
+ * the subsystem is initialized. Never the issue text (which may mention
+ * host paths).
+ *
+ * @param initialized - Whether the docker subsystem is initialized.
+ * @param containerCount - Number of containers in state.docker.containers[].
+ * @param issueCount - Number of issues the doctor flagged.
+ * @param runtime - The detected runtime kind (null if unavailable).
+ * @returns A `docker.doctor` {@link TelemetryEvent}.
+ */
+export function dockerDoctor(
+  initialized: boolean,
+  containerCount: number,
+  issueCount: number,
+  runtime: 'podroid' | 'docker' | 'podman' | null,
+): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.doctor' as TelemetryEventType,
+    fields: {
+      initialized,
+      container_count: containerCount,
+      issue_count: issueCount,
+      runtime,
+    },
+  };
+}
+
+/**
+ * Build a `docker.config` event. Emitted on `linuxify docker config`
+ * with at least one flag.
+ *
+ * Privacy contract: only a list of setting names that were changed
+ * (e.g. `["wake_lock_enabled", "port_range"]`) + whether the subsystem
+ * was initialized at the time of the change. Never the previous or new
+ * values (port range is integer but could be combined with user_id for
+ * fingerprinting; runtime kind is fine to leak).
+ *
+ * @param changedKeys - List of state.docker field names that changed.
+ * @param initialized - Whether the docker subsystem was initialized at change time.
+ * @returns A `docker.config` {@link TelemetryEvent}.
+ */
+export function dockerConfig(
+  changedKeys: string[],
+  initialized: boolean,
+): TelemetryEvent {
+  return {
+    ...buildEnvelope(),
+    event_type: 'docker.config' as TelemetryEventType,
+    fields: {
+      changed_keys: changedKeys,
+      initialized,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

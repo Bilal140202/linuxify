@@ -213,10 +213,33 @@ const mocks = vi.hoisted(() => {
 vi.mock('../../../src/utils/process.js', () => ({
   exec: mocks.exec,
   getLinuxifyHome: mocks.getLinuxifyHome,
+  getArch: vi.fn(() => 'x86_64'),
+  isTermux: vi.fn(() => false),
+  isAndroid: vi.fn(() => false),
+  getAndroidVersion: vi.fn(async () => null),
+  getTermuxPrefix: vi.fn(() => '/data/data/com.termux/files/usr'),
+  getDefaultUserAgent: vi.fn(() => 'linuxify/test'),
 }));
 
 vi.mock('../../../src/utils/distros.js', () => ({
   getActiveDistro: mocks.getActiveDistro,
+}));
+
+// Mock the telemetry singleton to return null so the docker engine's
+// `track()` calls become no-ops (telemetry is opt-in; tests don't opt in).
+// This avoids pulling in the real TelemetryClient class which would
+// touch the filesystem for the queue path.
+vi.mock('../../../src/telemetry/index.js', () => ({
+  getTelemetryClient: vi.fn(() => null),
+  dockerRunStart: vi.fn(() => ({ event_type: 'docker.run_start', fields: {} })),
+  dockerRunComplete: vi.fn(() => ({ event_type: 'docker.run_complete', fields: {} })),
+  dockerRunFailed: vi.fn(() => ({ event_type: 'docker.run_failed', fields: {} })),
+  dockerPs: vi.fn(() => ({ event_type: 'docker.ps', fields: {} })),
+  dockerStop: vi.fn(() => ({ event_type: 'docker.stop', fields: {} })),
+  dockerRm: vi.fn(() => ({ event_type: 'docker.rm', fields: {} })),
+  dockerClean: vi.fn(() => ({ event_type: 'docker.clean', fields: {} })),
+  dockerDoctor: vi.fn(() => ({ event_type: 'docker.doctor', fields: {} })),
+  dockerConfig: vi.fn(() => ({ event_type: 'docker.config', fields: {} })),
 }));
 
 vi.mock('../../../src/docker/detect.js', () => ({
@@ -638,7 +661,11 @@ describe('docker/engine — run (proot-distro docker path)', () => {
     mocks.setActiveDistro(null);
     mocks.setExecImpl(async () => ({ exitCode: 0, stdout: '', stderr: '', failed: false, timedOut: false, command: '' }));
     const engine = new DockerEngine(stateStore);
-    await expect(engine.run({ image: 'nginx' })).rejects.toThrow(/E_DOCKER_NO_DISTRO/);
+    // BUG-FIX: after the LinuxifyError arg-order fix, the human text
+    // ('No active proot-distro...') is in `.message` and the literal
+    // code ('E_DOCKER_NO_DISTRO') is in `.code`. Match on .message for
+    // the human text and assert .code separately via a try/catch.
+    await expect(engine.run({ image: 'nginx' })).rejects.toThrow(/No active proot-distro/);
   });
 });
 

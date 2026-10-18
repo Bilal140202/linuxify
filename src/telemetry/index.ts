@@ -47,6 +47,16 @@ export {
   cliInvoked,
   errorThrown,
   refreshAndroidVersion,
+  // Docker events (B-DOCKER-TELEMETRY).
+  dockerRunStart,
+  dockerRunComplete,
+  dockerRunFailed,
+  dockerPs,
+  dockerStop,
+  dockerRm,
+  dockerClean,
+  dockerDoctor,
+  dockerConfig,
 } from './events.js';
 export type { DoctorRunSummary } from './events.js';
 

@@ -29,6 +29,19 @@
 import { join } from 'node:path';
 
 import type { StateStore, DockerState, DockerContainer } from '../state/index.js';
+import { getTelemetryClient } from '../telemetry/index.js';
+import {
+  dockerRunStart,
+  dockerRunComplete,
+  dockerRunFailed,
+  dockerPs as dockerPsEvent,
+  dockerStop as dockerStopEvent,
+  dockerRm as dockerRmEvent,
+  dockerClean as dockerCleanEvent,
+  dockerDoctor as dockerDoctorEvent,
+  dockerConfig as dockerConfigEvent,
+} from '../telemetry/index.js';
+import type { TelemetryEvent } from '../telemetry/types.js';
 import { getActiveDistro } from '../utils/distros.js';
 import { LinuxifyError } from '../utils/errors.js';
 import { ensureDir } from '../utils/fs.js';
@@ -52,6 +65,8 @@ import { detectRuntime, getDockerArch } from './detect.js';
 import { PodroidClient } from './podroid-cli.js';
 import { allocatePort, reservePort } from './port-allocator.js';
 import { ProotDockerClient } from './proot-cli.js';
+// Telemetry: opt-in, off-by-default. `getTelemetryClient()` returns
+// null when telemetry is disabled, so `?.track()` is a clean no-op.
 
 const DOCKER_SUBDIR = 'docker';
 const DOCKER_DATA_SUBDIR = 'data';
@@ -60,7 +75,39 @@ const DOCKER_DATA_SUBDIR = 'data';
  * Union of operations the docker engine can perform. Each maps to a CLI
  * subcommand under `linuxify docker <op>`.
  */
-export type DockerOperation = 'init' | 'run' | 'ps' | 'stop' | 'rm' | 'logs' | 'forward' | 'clean' | 'doctor';
+export type DockerOperation = 'init' | 'run' | 'ps' | 'stop' | 'rm' | 'logs' | 'forward' | 'clean' | 'doctor' | 'config';
+
+/**
+ * Options accepted by {@link DockerEngine.setConfig}. All fields are
+ * optional — only the supplied fields are updated; the rest are
+ * preserved. This shape mirrors the public `linuxify docker config`
+ * CLI flags.
+ */
+export interface DockerConfigPatch {
+  /** Toggle the wake lock that protects containers from Android's background-process killer. */
+  wakeLockEnabled?: boolean;
+  /** Lower bound of the auto-allocated host port range (1024-65535). */
+  portRangeStart?: number;
+  /** Upper bound of the auto-allocated host port range (1024-65535). */
+  portRangeEnd?: number;
+  /** Force the default runtime used by `linuxify docker run` when the user doesn't pass --runtime. */
+  defaultRuntime?: DockerRuntime | null;
+}
+
+/**
+ * Result of {@link DockerEngine.getConfig}. Returns the current docker
+ * state verbatim — the caller (CLI) is responsible for formatting.
+ */
+export interface DockerConfigSnapshot {
+  initialized: boolean;
+  initializedAt: string | null;
+  defaultRuntime: DockerRuntime | null;
+  portRangeStart: number;
+  portRangeEnd: number;
+  nextPortHint: number;
+  wakeLockEnabled: boolean;
+  containerCount: number;
+}
 
 /**
  * Docker engine. Construct one per CLI invocation; the engine is stateless
@@ -129,12 +176,14 @@ export class DockerEngine {
    * module docstring.
    */
   async run(opts: RunOptions): Promise<RunResult> {
+    const runStart = Date.now();
     const state = await this.stateStore.load();
     if (!state.docker.initialized) {
       // Auto-init on first run so the user truly only needs one command.
       logger.info('docker: not initialized; auto-initializing on first run');
       const initResult = await this.init(opts.runtime);
       if (!initResult.success) {
+        this.track(dockerRunFailed(opts.image, initResult.runtime.kind, 'E_DOCKER_NOT_INITIALIZED'));
         return {
           success: false,
           name: opts.name ?? imageToSlug(opts.image),
@@ -157,6 +206,7 @@ export class DockerEngine {
       opts.runtime ?? freshState.docker.default_runtime,
     );
     if (!runtimeInfo.available) {
+      this.track(dockerRunFailed(opts.image, runtimeInfo.kind, 'E_DOCKER_RUNTIME_UNAVAILABLE'));
       return {
         success: false,
         name: opts.name ?? imageToSlug(opts.image),
@@ -169,6 +219,10 @@ export class DockerEngine {
         message: runtimeInfo.unavailableReason ?? 'Docker runtime unavailable.',
       };
     }
+
+    // Telemetry: signal that a real run is starting (image hash + runtime +
+    // whether the user forced a pull).
+    this.track(dockerRunStart(opts.image, runtimeInfo.kind, opts.pull === true));
 
     const dockerState = freshState.docker;
     const arch = getDockerArch();
@@ -208,6 +262,7 @@ export class DockerEngine {
       logger.info({ image: opts.image, arch }, 'docker: pulling image');
       const pullR = await client.pullImage(opts.image, arch);
       if (!pullR.ok) {
+        this.track(dockerRunFailed(opts.image, runtimeInfo.kind, 'E_DOCKER_PULL_FAILED'));
         return {
           success: false,
           name,
@@ -233,6 +288,7 @@ export class DockerEngine {
       extraArgs: opts.extraArgs,
     });
     if (!runR.ok) {
+      this.track(dockerRunFailed(opts.image, runtimeInfo.kind, 'E_DOCKER_RUN_FAILED'));
       return {
         success: false,
         name,
@@ -295,6 +351,17 @@ export class DockerEngine {
     });
 
     const url = `http://127.0.0.1:${primaryHostPort}`;
+    this.track(dockerRunComplete(
+      opts.image,
+      runtimeInfo.kind,
+      primaryHostPort,
+      Date.now() - runStart,
+      // `pulled` flag: did we actually pull this run? True only if
+      // the pull path fired (i.e. user passed --pull OR image wasn't
+      // cached). We didn't capture the boolean above, so recompute
+      // from the same condition the if-guard used.
+      opts.pull === true || !(await this.isImageCached(runtimeInfo, distro, opts.image, client)),
+    ));
     return {
       success: true,
       name,
@@ -344,6 +411,7 @@ export class DockerEngine {
         s.docker = newDockerState;
       });
     }
+    this.track(dockerPsEvent(updated.length, runtimeInfo.available ? runtimeInfo.kind : null));
     return updated;
   }
 
@@ -375,6 +443,7 @@ export class DockerEngine {
     await this.stateStore.update((s) => {
       s.docker = stoppedState;
     });
+    this.track(dockerStopEvent(name, true));
     return { success: true, message: `Stopped '${name}'.` };
   }
 
@@ -404,6 +473,7 @@ export class DockerEngine {
     await this.stateStore.update((s) => {
       s.docker = removedState;
     });
+    this.track(dockerRmEvent(name, true));
     return { success: true, message: `Removed '${name}' and cleaned up.` };
   }
 
@@ -480,6 +550,7 @@ export class DockerEngine {
     await this.stateStore.update((s) => {
       s.docker = clearedState;
     });
+    this.track(dockerCleanEvent(stopped, forwardsRemoved));
 
     return {
       success: true,
@@ -526,6 +597,12 @@ export class DockerEngine {
       issues.push('Wake lock is disabled; Android may kill long-running containers. Run: linuxify docker config --wake-lock on');
     }
 
+    this.track(dockerDoctorEvent(
+      state.docker.initialized,
+      state.docker.containers.length,
+      issues.length,
+      runtimeInfo.available ? runtimeInfo.kind : null,
+    ));
     return {
       initialized: state.docker.initialized,
       runtime: runtimeInfo,
@@ -534,7 +611,175 @@ export class DockerEngine {
     };
   }
 
+  /**
+   * Read the current docker subsystem config. Returns a stable snapshot
+   * shape (so the CLI can format it without leaking internal field names).
+   *
+   * Used by `linuxify docker config` (no args) to display the current
+   * settings.
+   */
+  async getConfig(): Promise<DockerConfigSnapshot> {
+    const state = await this.stateStore.load();
+    return {
+      initialized: state.docker.initialized,
+      initializedAt: state.docker.initialized_at,
+      defaultRuntime: state.docker.default_runtime,
+      portRangeStart: state.docker.port_range_start,
+      portRangeEnd: state.docker.port_range_end,
+      nextPortHint: state.docker.next_port_hint,
+      wakeLockEnabled: state.docker.wake_lock_enabled,
+      containerCount: state.docker.containers.length,
+    };
+  }
+
+  /**
+   * Update the docker subsystem config. Only the supplied fields are
+   * updated; the rest are preserved. Used by `linuxify docker config`
+   * with the various flags.
+   *
+   * Validation:
+   *  - `port_range_start` and `port_range_end` must satisfy 1024 ≤ start ≤ end ≤ 65535.
+   *  - `default_runtime` must be one of `podroid` | `docker` | `podman` (or null to auto-detect).
+   *  - If the new range excludes the current `next_port_hint`, the hint
+   *    is re-pinned to the new `port_range_start`.
+   *
+   * @throws {LinuxifyError} with code `E_DOCKER_CONFIG_INVALID` on validation failure.
+   */
+  async setConfig(patch: DockerConfigPatch): Promise<{ updated: DockerConfigSnapshot; message: string }> {
+    const state = await this.stateStore.load();
+    const next: DockerState = { ...state.docker };
+
+    const changes: string[] = [];
+
+    if (patch.wakeLockEnabled !== undefined) {
+      if (next.wake_lock_enabled !== patch.wakeLockEnabled) {
+        changes.push(`wake-lock: ${next.wake_lock_enabled} → ${patch.wakeLockEnabled}`);
+      }
+      next.wake_lock_enabled = patch.wakeLockEnabled;
+    }
+
+    if (patch.portRangeStart !== undefined || patch.portRangeEnd !== undefined) {
+      const start = patch.portRangeStart ?? next.port_range_start;
+      const end = patch.portRangeEnd ?? next.port_range_end;
+      if (!Number.isInteger(start) || start < 1024 || start > 65535) {
+        throw new LinuxifyError(
+          `port_range_start must be an integer in [1024, 65535]; got ${start}`,
+          'E_DOCKER_CONFIG_INVALID',
+        );
+      }
+      if (!Number.isInteger(end) || end < 1024 || end > 65535) {
+        throw new LinuxifyError(
+          `port_range_end must be an integer in [1024, 65535]; got ${end}`,
+          'E_DOCKER_CONFIG_INVALID',
+        );
+      }
+      if (start >= end) {
+        throw new LinuxifyError(
+          `port_range_start (${start}) must be strictly less than port_range_end (${end})`,
+          'E_DOCKER_CONFIG_INVALID',
+        );
+      }
+      if (next.port_range_start !== start || next.port_range_end !== end) {
+        changes.push(`port-range: [${next.port_range_start}, ${next.port_range_end}] → [${start}, ${end}]`);
+      }
+      next.port_range_start = start;
+      next.port_range_end = end;
+      // Re-pin the next_port_hint if it's outside the new range.
+      if (next.next_port_hint < start || next.next_port_hint > end) {
+        next.next_port_hint = start;
+      }
+    }
+
+    if (patch.defaultRuntime !== undefined) {
+      const valid: DockerRuntime[] = ['podroid', 'docker', 'podman'];
+      const rt = patch.defaultRuntime;
+      if (rt !== null && !valid.includes(rt)) {
+        throw new LinuxifyError(
+          `default_runtime must be one of ${valid.join(' | ')} or null; got ${JSON.stringify(rt)}`,
+          'E_DOCKER_CONFIG_INVALID',
+        );
+      }
+      if (next.default_runtime !== rt) {
+        changes.push(`default-runtime: ${next.default_runtime ?? '(auto)'} → ${rt ?? '(auto)'}`);
+      }
+      next.default_runtime = rt;
+    }
+
+    if (changes.length === 0) {
+      return {
+        updated: {
+          initialized: next.initialized,
+          initializedAt: next.initialized_at,
+          defaultRuntime: next.default_runtime,
+          portRangeStart: next.port_range_start,
+          portRangeEnd: next.port_range_end,
+          nextPortHint: next.next_port_hint,
+          wakeLockEnabled: next.wake_lock_enabled,
+          containerCount: next.containers.length,
+        },
+        message: 'No changes.',
+      };
+    }
+
+    await this.stateStore.update((s) => {
+      s.docker = next;
+    });
+
+    // Telemetry: emit a single docker.config event with the list of
+    // changed setting names (not values — see privacy contract on
+    // dockerConfig()).
+    const changedKeys: string[] = [];
+    if (patch.wakeLockEnabled !== undefined) changedKeys.push('wake_lock_enabled');
+    if (patch.portRangeStart !== undefined || patch.portRangeEnd !== undefined) changedKeys.push('port_range');
+    if (patch.defaultRuntime !== undefined) changedKeys.push('default_runtime');
+    this.track(dockerConfigEvent(changedKeys, next.initialized));
+
+    return {
+      updated: {
+        initialized: next.initialized,
+        initializedAt: next.initialized_at,
+        defaultRuntime: next.default_runtime,
+        portRangeStart: next.port_range_start,
+        portRangeEnd: next.port_range_end,
+        nextPortHint: next.next_port_hint,
+        wakeLockEnabled: next.wake_lock_enabled,
+        containerCount: next.containers.length,
+      },
+      message: `Updated: ${changes.join('; ')}.`,
+    };
+  }
+
   // ─── Private helpers ──────────────────────────────────────────
+
+  /**
+   * Emit a telemetry event. No-op when telemetry is disabled (the
+   * `getTelemetryClient()` singleton returns null in that case).
+   *
+   * Swallows errors: telemetry is best-effort and must never break a
+   * user-facing operation. If the underlying client's track() throws
+   * (e.g. queue write fails), we log a warning and move on.
+   *
+   * Note: the helpers in `src/telemetry/events.ts` return a full
+   * `TelemetryEvent` envelope (with event_id, timestamp, session_id,
+   * etc.), but the live `TelemetryClient.track()` takes only
+   * `(eventType, fields)` and re-creates the envelope from its own
+   * session state. We destructure the helper's output and pass the
+   * type + fields through. The helper's envelope work isn't wasted —
+   * it's what tests assert against when verifying the privacy
+   * contract.
+   */
+  private track(event: TelemetryEvent): void {
+    try {
+      const client = getTelemetryClient();
+      if (client === null) return;
+      client.track(event.event_type as Parameters<typeof client.track>[0], event.fields);
+    } catch (err) {
+      logger.warn(
+        { err: (err as Error).message, event_type: event.event_type },
+        'docker: telemetry track() failed (continuing)',
+      );
+    }
+  }
 
   /**
    * Get the runtime-specific client. The dispatch is on
@@ -552,8 +797,8 @@ export class DockerEngine {
     }
     if (!distro) {
       throw new LinuxifyError(
-        'E_DOCKER_NO_DISTRO',
         'No active proot-distro; cannot talk to docker/podman. Run: linuxify init',
+        'E_DOCKER_NO_DISTRO',
       );
     }
     return new ProotDockerClient({ distro, binary: info.kind === 'podman' ? 'podman' : 'docker' });

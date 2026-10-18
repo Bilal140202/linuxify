@@ -122,6 +122,16 @@ export type TelemetryEventType =
   | 'run.start'
   | 'run.complete'
   | 'run.failed'
+  // Docker subsystem (linuxify docker run/ps/stop/rm/clean/doctor/config)
+  | 'docker.run_start'
+  | 'docker.run_complete'
+  | 'docker.run_failed'
+  | 'docker.ps'
+  | 'docker.stop'
+  | 'docker.rm'
+  | 'docker.clean'
+  | 'docker.doctor'
+  | 'docker.config'
   // Update / self-update subsystems
   | 'update.start'
   | 'update.complete'
